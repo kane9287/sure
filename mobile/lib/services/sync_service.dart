@@ -179,6 +179,8 @@ class SyncService with ChangeNotifier {
             categoryId: transaction.categoryId,
             merchantId: transaction.merchantId,
             tagIds: transaction.tagIds,
+            externalId: transaction.localId,
+            source: TransactionsService.mobileIdempotencySource,
           );
 
           if (result['success'] == true) {
