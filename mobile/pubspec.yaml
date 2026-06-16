@@ -39,6 +39,7 @@ flutter:
   assets:
     - assets/icon/
     - assets/images/
+    - assets/icons/lucide/
   # Geist + Geist Mono (SIL OFL-1.1 — see assets/fonts/OFL.txt). The theme
   # (SureTokens.fontSans/fontMono) already names these families; bundling the
   # assets here makes them actually render instead of falling back to the
