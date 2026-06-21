@@ -12,6 +12,7 @@ import '../widgets/account_detail_header.dart';
 import '../widgets/category_filter.dart';
 import '../widgets/sync_status_badge.dart';
 import '../services/log_service.dart';
+import '../theme/sure_tokens.dart';
 import '../utils/amount_parser.dart';
 import '../widgets/money_text.dart';
 import '../l10n/app_localizations.dart';
@@ -584,7 +585,7 @@ class _TransactionsListScreenState extends State<TransactionsListScreen> {
                                         child: Text(
                                           transaction.name,
                                           style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                                                fontWeight: FontWeight.w500,
+                                                fontWeight: SureTokens.weightMedium,
                                               ),
                                           overflow: TextOverflow.ellipsis,
                                         ),
@@ -606,7 +607,7 @@ class _TransactionsListScreenState extends State<TransactionsListScreen> {
                                               _getCategoryDisplayName(transaction.categoryId, transaction.categoryName) ?? '',
                                               style: Theme.of(context).textTheme.labelSmall?.copyWith(
                                                     color: colorScheme.onPrimaryContainer,
-                                                    fontWeight: FontWeight.w500,
+                                                    fontWeight: SureTokens.weightMedium,
                                                   ),
                                               overflow: TextOverflow.ellipsis,
                                             ),
@@ -684,7 +685,7 @@ class _TransactionsListScreenState extends State<TransactionsListScreen> {
                                         trend: displayInfo['trend'] as MoneyTrend,
                                         overflow: TextOverflow.ellipsis,
                                         style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                                              fontWeight: FontWeight.w500,
+                                              fontWeight: SureTokens.weightMedium,
                                             ),
                                       ),
                                     ),
@@ -709,7 +710,7 @@ class _TransactionsListScreenState extends State<TransactionsListScreen> {
                                         style: TextStyle(
                                           color: Colors.blue,
                                           fontSize: 11,
-                                          fontWeight: FontWeight.w600,
+                                          fontWeight: SureTokens.weightSemibold,
                                         ),
                                       ),
                                     ),

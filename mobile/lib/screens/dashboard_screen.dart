@@ -12,6 +12,7 @@ import '../widgets/connectivity_banner.dart';
 import '../widgets/net_worth_card.dart';
 import '../widgets/currency_filter.dart';
 import '../widgets/sure_icon.dart';
+import '../theme/sure_tokens.dart';
 import 'transaction_form_screen.dart';
 import 'transactions_list_screen.dart';
 import '../l10n/app_localizations.dart';
@@ -720,7 +721,7 @@ class _CollapsibleTypeHeader extends StatelessWidget {
             Text(
               title,
               style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                    fontWeight: FontWeight.w500,
+                    fontWeight: SureTokens.weightMedium,
                   ),
             ),
             const SizedBox(width: 8),
@@ -734,7 +735,7 @@ class _CollapsibleTypeHeader extends StatelessWidget {
                 count.toString(),
                 style: TextStyle(
                   color: colorScheme.onPrimaryContainer,
-                  fontWeight: FontWeight.w500,
+                  fontWeight: SureTokens.weightMedium,
                   fontSize: 11,
                 ),
               ),
