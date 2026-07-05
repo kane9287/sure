@@ -54,6 +54,40 @@ To stay compliant and avoid trademark issues:
 - Be sure to include the original [AGPLv3 license](https://github.com/maybe-finance/maybe/blob/main/LICENSE) and clearly state in your README that your fork is based on Maybe Finance but is **not affiliated with or endorsed by** Maybe Finance Inc.
 - "Maybe" is a trademark of Maybe Finance Inc. and therefore, use of it is NOT allowed in forked repositories (or the logo)
 
+## Customizing Branding
+
+If you’re forking this repo for your own organization, you’ll want to replace the branding assets and app name.
+
+### Updating the App Logo
+
+Replace these asset files with your own artwork (keep the same filenames so no code changes are needed):
+
+**Primary marks:**
+- `app/assets/images/logomark.svg` — monochrome mark for sidebar, login/auth pages
+- `app/assets/images/logomark-color.svg` — color mark for onboarding, intro, collapsed sidebar
+- `app/assets/images/logo-color.png` — larger PNG version for additional contexts
+
+**PWA & Favicons (in `public/`):**
+- `logo-pwa.png` — 512×512 icon for PWA/iOS install
+- `logo-offline.svg` — fallback logo for offline pages
+- `favicon.ico` — browser tab icon
+- `favicon-16x16.png`, `favicon-32x32.png` — various favicon sizes
+- `apple-touch-icon.png` — iOS home screen icon (180×180)
+- `android-chrome-192x192.png`, `android-chrome-512x512.png` — Android Chrome icons
+- `mstile-150x150.png` — Windows tile icon
+
+### Updating the App Name
+
+The app name and branding text are configurable via environment variables — no code changes needed:
+
+```bash
+# In your .env or deployment config:
+PRODUCT_NAME="Your App Name"          # Default: "Sure"
+BRAND_NAME="Your Organization"        # Default: "FOSS"
+```
+
+These are used throughout the app in headers, onboarding, and UI text. See `config/initializers/brand.rb` for defaults.
+
 ## Performance Issues
 
 With data-heavy apps, inevitably, there are performance issues. We've set up a public dashboard showing the problematic requests seen on the demo site, along with the stacktraces to help debug them.
