@@ -80,6 +80,9 @@ node_modules
 
 plaid_test_accounts/
 
+# User feedback screenshots/notes (not part of the app)
+feedback_screenshots/
+
 # Added by Claude
 .claude/settings.local.json
 docs/superpowers/

@@ -90,6 +90,36 @@
                   </div>
 
                   <div class="flex items-center gap-1 flex-shrink-0">
+                    <%# Note indicator %>
+                    <% if entry.notes.present? %>
+                      <span class="text-secondary" title="<%= t("transactions.transaction.note_tooltip") %>">
+                        <%= icon "sticky-note", size: "sm", color: "current" %>
+                      </span>
+                    <% end %>
+
+                    <%# Tag indicators %>
+                    <% if transaction.tags.any? %>
+                      <% sorted_tags = transaction.tags.to_a.sort_by(&:name) %>
+                      <% sorted_tags.first(2).each do |tag| %>
+                        <%= render DS::Pill.new(
+                          label: tag.name,
+                          marker: false,
+                          icon: "tag",
+                          custom_color: tag.color,
+                          truncate: true,
+                          title: tag.name
+                        ) %>
+                      <% end %>
+                      <% if sorted_tags.size > 2 %>
+                        <%= render DS::Pill.new(
+                          label: "+#{sorted_tags.size - 2}",
+                          tone: :neutral,
+                          marker: false,
+                          title: sorted_tags.drop(2).map(&:name).join(", ")
+                        ) %>
+                      <% end %>
+                    <% end %>
+
                     <% if transaction.one_time? %>
                       <span class="text-orange-500" title="One-time <%= entry.amount.negative? ? "income" : "expense" %> (excluded from averages)">
                         <%= icon "asterisk", size: "sm", color: "current" %>
