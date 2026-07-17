@@ -533,6 +533,120 @@ class Transaction::SearchTest < ActiveSupport::TestCase
     assert_not_includes result_ids, no_match.entryable.id
   end
 
+  test "search matches amount with whole-dollar precision" do
+    # Transactions with amounts that should match when searching for "52"
+    exact_52 = create_transaction(
+      account: @checking_account,
+      amount: 52.00,
+      kind: "standard",
+      name: "Transaction A"
+    )
+
+    in_range_52_82 = create_transaction(
+      account: @checking_account,
+      amount: 52.82,
+      kind: "standard",
+      name: "Transaction B"
+    )
+
+    # Transactions that should NOT match when searching for "52"
+    different_whole = create_transaction(
+      account: @checking_account,
+      amount: 152.82,
+      kind: "standard",
+      name: "Transaction C"
+    )
+
+    way_off = create_transaction(
+      account: @checking_account,
+      amount: 520.00,
+      kind: "standard",
+      name: "Transaction D"
+    )
+
+    # Test: search "52" matches 52.00-52.99 range
+    search = Transaction::Search.new(
+      @family,
+      filters: { search: "52" }
+    )
+    result_ids = search.transactions_scope.pluck(:id)
+
+    assert_includes result_ids, exact_52.entryable.id, "52 should match 52.00"
+    assert_includes result_ids, in_range_52_82.entryable.id, "52 should match 52.82"
+    assert_not_includes result_ids, different_whole.entryable.id, "52 should not match 152.82"
+    assert_not_includes result_ids, way_off.entryable.id, "52 should not match 520.00"
+
+    # Test: search "52.82" matches exactly (with 0.01 tolerance)
+    search = Transaction::Search.new(
+      @family,
+      filters: { search: "52.82" }
+    )
+    result_ids = search.transactions_scope.pluck(:id)
+
+    assert_includes result_ids, in_range_52_82.entryable.id, "52.82 should match 52.82"
+    assert_not_includes result_ids, exact_52.entryable.id, "52.82 should not match 52.00"
+  end
+
+  test "search with amount ignores sign (matches both inflow and outflow)" do
+    expense = create_transaction(
+      account: @checking_account,
+      amount: 52.50,
+      kind: "standard",
+      name: "Expense"
+    )
+
+    income = create_transaction(
+      account: @checking_account,
+      amount: -52.50,
+      kind: "standard",
+      name: "Income"
+    )
+
+    search = Transaction::Search.new(
+      @family,
+      filters: { search: "52.5" }
+    )
+    result_ids = search.transactions_scope.pluck(:id)
+
+    assert_includes result_ids, expense.entryable.id
+    assert_includes result_ids, income.entryable.id
+  end
+
+  test "non-numeric search unaffected by amount matching" do
+    matching_name = create_transaction(
+      account: @checking_account,
+      amount: 99.99,
+      kind: "standard",
+      name: "grocery 52"
+    )
+
+    matching_notes = create_transaction(
+      account: @checking_account,
+      amount: 75.00,
+      kind: "standard",
+      name: "other",
+      notes: "contains 52 in notes"
+    )
+
+    non_matching = create_transaction(
+      account: @checking_account,
+      amount: 52.00,
+      kind: "standard",
+      name: "unrelated",
+      notes: "no search term here"
+    )
+
+    search = Transaction::Search.new(
+      @family,
+      filters: { search: "52" }
+    )
+    result_ids = search.transactions_scope.pluck(:id)
+
+    assert_includes result_ids, matching_name.entryable.id, "52 should match name containing 52"
+    assert_includes result_ids, matching_notes.entryable.id, "52 should match notes containing 52"
+    assert_includes result_ids, non_matching.entryable.id, "52 should match amount 52.00"
+  end
+
   test "uncategorized filter returns same results across all supported locales" do
     # Create uncategorized transactions
     uncategorized1 = create_transaction(

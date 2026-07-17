@@ -16,11 +16,28 @@ class EntrySearch
     def apply_search_filter(scope, search)
       return scope if search.blank?
 
-      query = scope
-      query = query.where("entries.name ILIKE :search OR entries.notes ILIKE :search",
-        search: "%#{ActiveRecord::Base.sanitize_sql_like(search)}%"
-      )
-      query
+      conditions = [ "entries.name ILIKE :search OR entries.notes ILIKE :search" ]
+      params = { search: "%#{ActiveRecord::Base.sanitize_sql_like(search)}%" }
+
+      if (range = numeric_search_range(search))
+        conditions << "(ABS(entries.amount) >= :amount_low AND ABS(entries.amount) < :amount_high)"
+        params[:amount_low]  = range.first
+        params[:amount_high] = range.last
+      end
+
+      scope.where(conditions.join(" OR "), params)
+    end
+
+    private
+
+    def numeric_search_range(search)
+      normalized = search.to_s.strip.delete(",").sub(/\A[$€£]/, "")
+      return nil unless normalized.match?(/\A\d+(\.\d+)?\z/)
+
+      value    = BigDecimal(normalized)
+      decimals = normalized[/\.(\d+)\z/, 1]&.length || 0
+      step     = BigDecimal(1) / (10 ** decimals)
+      [ value, value + step ]
     end
 
     def apply_date_filters(scope, start_date, end_date)
