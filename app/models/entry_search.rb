@@ -28,18 +28,6 @@ class EntrySearch
       scope.where(conditions.join(" OR "), params)
     end
 
-    private
-
-    def numeric_search_range(search)
-      normalized = search.to_s.strip.delete(",").sub(/\A[$€£]/, "")
-      return nil unless normalized.match?(/\A\d+(\.\d+)?\z/)
-
-      value    = BigDecimal(normalized)
-      decimals = normalized[/\.(\d+)\z/, 1]&.length || 0
-      step     = BigDecimal(1) / (10 ** decimals)
-      [ value, value + step ]
-    end
-
     def apply_date_filters(scope, start_date, end_date)
       return scope if start_date.blank? && end_date.blank?
 
@@ -108,6 +96,18 @@ class EntrySearch
       else
         scope
       end
+    end
+
+    private
+
+    def numeric_search_range(search)
+      normalized = search.to_s.strip.delete(",").sub(/\A[$€£]/, "")
+      return nil unless normalized.match?(/\A\d+(\.\d+)?\z/)
+
+      value    = BigDecimal(normalized)
+      decimals = normalized[/\.(\d+)\z/, 1]&.length || 0
+      step     = BigDecimal(1) / (10 ** decimals)
+      [ value, value + step ]
     end
   end
 

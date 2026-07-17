@@ -58,6 +58,9 @@
 # Ignore .devcontainer files
 compose-dev.yaml
 
+# Local deployment compose file (contains host-specific secrets/config)
+compose.yaml
+
 # Ignore asdf ruby version file
 .tool-versions
 
