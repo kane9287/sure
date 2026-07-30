@@ -181,14 +181,21 @@ class RecurringTransaction
         matching_amounts = matching_entries.map(&:amount)
         last_entry = matching_entries.max_by(&:date)
 
+        # An occurrence recorded directly (e.g. logging an upcoming bill from the
+        # Upcoming tab) may fall outside this helper's amount/day-of-month match
+        # window, so recomputing from matched entries alone can walk the row
+        # backwards and let the Cleaner wrongly inactivate it. Only ever move
+        # last_occurrence_date forward.
+        occurrence_date = [ last_entry.date, recurring.last_occurrence_date ].compact.max
+
         # Recalculate variance from all occurrences (including identical amounts)
         recurring.update!(
           expected_amount_min: matching_amounts.min,
           expected_amount_max: matching_amounts.max,
           expected_amount_avg: matching_amounts.sum / matching_amounts.size,
           occurrence_count: matching_amounts.size,
-          last_occurrence_date: last_entry.date,
-          next_expected_date: calculate_next_expected_date(last_entry.date, recurring.expected_day_of_month)
+          last_occurrence_date: occurrence_date,
+          next_expected_date: calculate_next_expected_date(occurrence_date, recurring.expected_day_of_month)
         )
       end
     end

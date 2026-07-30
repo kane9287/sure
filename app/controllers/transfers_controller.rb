@@ -7,6 +7,7 @@ class TransfersController < ApplicationController
   def new
     @transfer = Transfer.new
     @from_account_id = params[:from_account_id]
+    apply_recurring_attributes!
   end
 
   def show
@@ -44,6 +45,8 @@ class TransfersController < ApplicationController
     ).create
 
     if @transfer.persisted?
+      record_recurring_occurrence!
+
       success_message = "Transfer created"
       respond_to do |format|
         format.html { redirect_back_or_to transactions_path, notice: success_message }
@@ -51,6 +54,7 @@ class TransfersController < ApplicationController
       end
     else
       @from_account_id = transfer_params[:from_account_id]
+      @to_account_id = transfer_params[:to_account_id]
       render :new, status: :unprocessable_entity
     end
   rescue Money::ConversionError
@@ -149,6 +153,45 @@ class TransfersController < ApplicationController
   end
 
   private
+    # The recurring row an occurrence is being logged against, if any. Only
+    # manual transfer rows qualify: auto-detected rows are fed by a sync
+    # provider (logging by hand would double-count), and non-transfer rows
+    # belong to the transaction form instead. `accessible_by` already requires
+    # access to both endpoints, matching the checks `create` makes.
+    def recurring_source
+      return @recurring_source if defined?(@recurring_source)
+
+      @recurring_source = if params[:recurring_transaction_id].present?
+        source = Current.family.recurring_transactions
+                        .accessible_by(Current.user)
+                        .find_by(id: params[:recurring_transaction_id])
+        source if source&.manual? && source&.transfer?
+      end
+    end
+
+    def apply_recurring_attributes!
+      return unless recurring_source
+
+      # Transfer has no from/to_account_id attributes — both endpoints are
+      # derived from its entries — so the form takes them as `selected:`.
+      @from_account_id ||= recurring_source.account_id
+      @to_account_id ||= recurring_source.destination_account_id
+      # `number_field` renders `amount_before_type_cast`, so hand it a plain
+      # decimal string — a BigDecimal would render in engineering notation.
+      @transfer.amount = recurring_source.display_amount.to_d.to_s("F")
+    end
+
+    # Record the occurrence against the recurring row directly. The Identifier's
+    # amount/day-of-month matcher can't reliably re-match a hand-entered
+    # transfer, so variance tracking only stays honest if we record it here.
+    # Amount is positive, matching how `create_from_transfer` stores the
+    # outflow entry's amount.
+    def record_recurring_occurrence!
+      return unless recurring_source
+
+      recurring_source.record_occurrence!(@transfer.date, @transfer.amount)
+    end
+
     def set_transfer
       # Finds the transfer and ensures the user has access to it
       accessible_transaction_ids = Current.family.transactions

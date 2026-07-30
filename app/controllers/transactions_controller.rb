@@ -7,8 +7,10 @@ class TransactionsController < ApplicationController
 
   def new
     prefill_params_from_duplicate!
+    prefill_params_from_recurring!
     super
     apply_duplicate_attributes!
+    apply_recurring_attributes!
     set_new_transaction_form_options
   end
 
@@ -107,6 +109,7 @@ class TransactionsController < ApplicationController
       @entry.lock_saved_attributes!
       @entry.mark_user_modified!
       @entry.transaction.lock_attr!(:tag_ids) if @entry.transaction.tags.any?
+      record_recurring_occurrence!
 
       flash[:notice] = t(".created")
 
@@ -442,6 +445,50 @@ class TransactionsController < ApplicationController
         merchant_id: duplicate_source.entryable.merchant_id
       )
       @entry.entryable.tag_ids = duplicate_source.entryable.tag_ids
+    end
+
+    # Only manual, non-transfer rows can be logged this way: auto-detected rows
+    # are fed by a sync provider (logging by hand would double-count), and
+    # transfers need the two-account transfer form rather than this one.
+    def recurring_source
+      return @recurring_source if defined?(@recurring_source)
+      @recurring_source = if params[:recurring_transaction_id].present?
+        source = Current.family.recurring_transactions
+                        .accessible_by(Current.user)
+                        .find_by(id: params[:recurring_transaction_id])
+        source if source&.manual? && !source.transfer?
+      end
+    end
+
+    def prefill_params_from_recurring!
+      return unless recurring_source
+      params[:nature] ||= recurring_source.amount.negative? ? "inflow" : "outflow"
+      params[:account_id] ||= recurring_source.account_id.to_s
+    end
+
+    def apply_recurring_attributes!
+      return unless recurring_source
+      # The form carries the sign in `nature` and expects a positive amount, so
+      # abs here. RecurringTransaction has no category, but prefilling the
+      # merchant lets existing categorization rules fill it in on save.
+      @entry.assign_attributes(
+        name: recurring_source.merchant&.name || recurring_source.name,
+        amount: recurring_source.display_amount.abs,
+        currency: recurring_source.currency,
+        date: Date.current
+      )
+      @entry.entryable.assign_attributes(merchant_id: recurring_source.merchant_id)
+    end
+
+    # Record the occurrence against the recurring row directly, which is what
+    # keeps variance tracking honest for hand-entered ledgers: the Identifier's
+    # amount/day-of-month matcher can't reliably re-match a variable bill.
+    # Amount is passed signed (not abs) to match how `amount` and
+    # `expected_amount_*` are stored by `create_from_transaction`.
+    def record_recurring_occurrence!
+      return unless recurring_source
+
+      recurring_source.record_occurrence!(@entry.date, @entry.amount)
     end
 
     def set_entry_for_unlock

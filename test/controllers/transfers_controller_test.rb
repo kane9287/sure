@@ -359,4 +359,160 @@ class TransfersControllerTest < ActionDispatch::IntegrationTest
     end
     assert_equal I18n.t("recurring_transactions.transfer_feature_disabled"), flash[:alert]
   end
+
+  test "new with recurring_transaction_id pre-fills both endpoints and the amount" do
+    recurring = create_manual_recurring_transfer(amount: 250)
+
+    get new_transfer_url(recurring_transaction_id: recurring.id)
+    assert_response :success
+    assert_select "input[type='hidden'][name='transfer[from_account_id]'][value=?]", accounts(:depository).id
+    assert_select "input[type='hidden'][name='transfer[to_account_id]'][value=?]", accounts(:credit_card).id
+    assert_select "input[name='transfer[amount]'][value=?]", "250.0"
+    assert_select "input[type='hidden'][name='recurring_transaction_id'][value=?]", recurring.id
+  end
+
+  test "new with recurring_transaction_id prefills the average amount when variance is tracked" do
+    recurring = create_manual_recurring_transfer(amount: 250)
+    recurring.update!(expected_amount_min: 200, expected_amount_max: 300, expected_amount_avg: 260)
+
+    get new_transfer_url(recurring_transaction_id: recurring.id)
+    assert_response :success
+    assert_select "input[name='transfer[amount]'][value=?]", "260.0"
+  end
+
+  test "new with auto-detected recurring_transaction_id does not prefill" do
+    recurring = create_manual_recurring_transfer(amount: 250)
+    recurring.update!(manual: false)
+
+    get new_transfer_url(recurring_transaction_id: recurring.id)
+    assert_response :success
+    assert_select "input[type='hidden'][name='transfer[to_account_id]'][value=?]", accounts(:credit_card).id, count: 0
+    assert_select "input[type='hidden'][name='recurring_transaction_id']", count: 0
+  end
+
+  test "new with non-transfer recurring_transaction_id does not prefill" do
+    recurring = recurring_transactions(:netflix_subscription)
+    recurring.update!(manual: true)
+
+    get new_transfer_url(recurring_transaction_id: recurring.id)
+    assert_response :success
+    assert_select "input[type='hidden'][name='recurring_transaction_id']", count: 0
+  end
+
+  test "new with recurring_transaction_id from another family does not prefill" do
+    other_family = families(:empty)
+    source = other_family.accounts.create!(name: "Other source", balance: 0, currency: "USD", accountable: Depository.new)
+    destination = other_family.accounts.create!(name: "Other destination", balance: 0, currency: "USD", accountable: Depository.new)
+    recurring = other_family.recurring_transactions.create!(
+      account: source,
+      destination_account: destination,
+      name: "Should not leak",
+      amount: 250,
+      currency: "USD",
+      expected_day_of_month: 10,
+      last_occurrence_date: 1.month.ago.to_date,
+      next_expected_date: 10.days.from_now.to_date,
+      status: "active",
+      manual: true,
+      occurrence_count: 1
+    )
+
+    get new_transfer_url(recurring_transaction_id: recurring.id)
+    assert_response :success
+    assert_select "input[type='hidden'][name='recurring_transaction_id']", count: 0
+  end
+
+  test "create with recurring_transaction_id records the occurrence" do
+    recurring = create_manual_recurring_transfer(amount: 250)
+
+    assert_difference "Transfer.count", 1 do
+      post transfers_url, params: {
+        recurring_transaction_id: recurring.id,
+        transfer: {
+          from_account_id: accounts(:depository).id,
+          to_account_id: accounts(:credit_card).id,
+          date: Date.current,
+          amount: 275
+        }
+      }
+    end
+
+    recurring.reload
+    assert_equal Date.current, recurring.last_occurrence_date
+    assert_equal 2, recurring.occurrence_count
+    assert_equal "active", recurring.status
+    assert_equal recurring.expected_day_of_month, recurring.next_expected_date.day
+    assert recurring.next_expected_date > Date.current
+    assert_equal 275, recurring.expected_amount_avg
+  end
+
+  test "create without recurring_transaction_id leaves recurring transactions untouched" do
+    recurring = create_manual_recurring_transfer(amount: 250)
+    original_date = recurring.last_occurrence_date
+
+    post transfers_url, params: {
+      transfer: {
+        from_account_id: accounts(:depository).id,
+        to_account_id: accounts(:credit_card).id,
+        date: Date.current,
+        amount: 275
+      }
+    }
+
+    recurring.reload
+    assert_equal original_date, recurring.last_occurrence_date
+    assert_equal 1, recurring.occurrence_count
+  end
+
+  test "create with recurring_transaction_id from another family does not record an occurrence" do
+    other_family = families(:empty)
+    source = other_family.accounts.create!(name: "Other source", balance: 0, currency: "USD", accountable: Depository.new)
+    destination = other_family.accounts.create!(name: "Other destination", balance: 0, currency: "USD", accountable: Depository.new)
+    recurring = other_family.recurring_transactions.create!(
+      account: source,
+      destination_account: destination,
+      name: "Should not leak",
+      amount: 250,
+      currency: "USD",
+      expected_day_of_month: 10,
+      last_occurrence_date: 1.month.ago.to_date,
+      next_expected_date: 10.days.from_now.to_date,
+      status: "active",
+      manual: true,
+      occurrence_count: 1
+    )
+    original_date = recurring.last_occurrence_date
+
+    post transfers_url, params: {
+      recurring_transaction_id: recurring.id,
+      transfer: {
+        from_account_id: accounts(:depository).id,
+        to_account_id: accounts(:credit_card).id,
+        date: Date.current,
+        amount: 275
+      }
+    }
+
+    recurring.reload
+    assert_equal original_date, recurring.last_occurrence_date
+    assert_equal 1, recurring.occurrence_count
+  end
+
+  private
+    # No manual transfer row exists in the fixtures, so build one inline.
+    def create_manual_recurring_transfer(amount:)
+      users(:family_admin).family.recurring_transactions.create!(
+        account: accounts(:depository),
+        destination_account: accounts(:credit_card),
+        name: "Card payment",
+        amount: amount,
+        currency: "USD",
+        expected_day_of_month: 10,
+        last_occurrence_date: 1.month.ago.to_date,
+        next_expected_date: 10.days.from_now.to_date,
+        status: "active",
+        manual: true,
+        occurrence_count: 1
+      )
+    end
 end

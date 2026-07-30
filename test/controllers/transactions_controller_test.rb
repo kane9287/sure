@@ -539,6 +539,189 @@ end
     end
   end
 
+  test "new with recurring_transaction_id pre-fills form from recurring transaction" do
+    recurring = create_manual_recurring(amount: 42)
+
+    get new_transaction_url(recurring_transaction_id: recurring.id)
+    assert_response :success
+    assert_select "input[name='entry[name]'][value=?]", recurring.merchant.name
+    assert_select "input[type='number'][name='entry[amount]']" do |elements|
+      assert_equal "42.00", elements.first["value"]
+    end
+    assert_select "input[type='hidden'][name='recurring_transaction_id'][value=?]", recurring.id
+  end
+
+  test "new with recurring_transaction_id prefills the average amount when variance is tracked" do
+    recurring = create_manual_recurring(amount: 100)
+    recurring.update!(expected_amount_min: 90, expected_amount_max: 120, expected_amount_avg: 105)
+
+    get new_transaction_url(recurring_transaction_id: recurring.id)
+    assert_response :success
+    assert_select "input[type='number'][name='entry[amount]']" do |elements|
+      assert_equal "105.00", elements.first["value"]
+    end
+  end
+
+  test "new with recurring_transaction_id defaults the date to today" do
+    recurring = create_manual_recurring(amount: 42)
+
+    get new_transaction_url(recurring_transaction_id: recurring.id)
+    assert_response :success
+    assert_select "input[type='date'][name='entry[date]'][value=?]", Date.current.to_s
+  end
+
+  test "new with auto-detected recurring_transaction_id does not prefill form" do
+    recurring = create_manual_recurring(amount: 42)
+    recurring.update!(manual: false)
+
+    get new_transaction_url(recurring_transaction_id: recurring.id)
+    assert_response :success
+    assert_select "input[name='entry[name]']" do |elements|
+      assert_nil elements.first["value"]
+    end
+    assert_select "input[type='hidden'][name='recurring_transaction_id']", count: 0
+  end
+
+  test "new with transfer recurring_transaction_id does not prefill form" do
+    recurring = create_manual_recurring(amount: 42)
+    destination = recurring.family.accounts.create!(name: "Destination", balance: 0, currency: "USD", accountable: Depository.new)
+    recurring.update!(destination_account: destination)
+
+    get new_transaction_url(recurring_transaction_id: recurring.id)
+    assert_response :success
+    assert_select "input[name='entry[name]']" do |elements|
+      assert_nil elements.first["value"]
+    end
+  end
+
+  test "new with recurring_transaction_id from another family does not prefill form" do
+    other_family = families(:empty)
+    other_account = other_family.accounts.create!(name: "Other", balance: 0, currency: "USD", accountable: Depository.new)
+    recurring = other_family.recurring_transactions.create!(
+      account: other_account,
+      name: "Should not leak",
+      amount: 42,
+      currency: "USD",
+      expected_day_of_month: Date.current.day,
+      last_occurrence_date: 1.month.ago.to_date,
+      next_expected_date: 5.days.from_now.to_date,
+      status: "active",
+      manual: true,
+      occurrence_count: 1
+    )
+
+    get new_transaction_url(recurring_transaction_id: recurring.id)
+    assert_response :success
+    assert_select "input[name='entry[name]']" do |elements|
+      assert_nil elements.first["value"]
+    end
+  end
+
+  test "create with recurring_transaction_id records the occurrence" do
+    recurring = create_manual_recurring(amount: 50)
+    previous_count = recurring.occurrence_count
+
+    assert_difference "Entry.count", 1 do
+      post transactions_url, params: {
+        recurring_transaction_id: recurring.id,
+        entry: {
+          account_id: recurring.account_id,
+          name: recurring.merchant.name,
+          date: Date.current,
+          currency: "USD",
+          amount: 57,
+          nature: "outflow",
+          entryable_type: "Transaction",
+          entryable_attributes: { merchant_id: recurring.merchant_id }
+        }
+      }
+    end
+
+    recurring.reload
+    assert_equal Date.current, recurring.last_occurrence_date
+    assert_equal previous_count + 1, recurring.occurrence_count
+    assert_equal "active", recurring.status
+    assert_equal recurring.expected_day_of_month, recurring.next_expected_date.day
+    assert recurring.next_expected_date > Date.current
+    assert_equal 57, recurring.expected_amount_avg
+  end
+
+  test "create with recurring_transaction_id reactivates an inactive recurring transaction" do
+    recurring = create_manual_recurring(amount: 50)
+    recurring.update!(status: "inactive")
+
+    post transactions_url, params: {
+      recurring_transaction_id: recurring.id,
+      entry: {
+        account_id: recurring.account_id,
+        name: recurring.merchant.name,
+        date: Date.current,
+        currency: "USD",
+        amount: 50,
+        nature: "outflow",
+        entryable_type: "Transaction"
+      }
+    }
+
+    assert_equal "active", recurring.reload.status
+  end
+
+  test "create without recurring_transaction_id leaves recurring transactions untouched" do
+    recurring = create_manual_recurring(amount: 50)
+    original_date = recurring.last_occurrence_date
+
+    post transactions_url, params: {
+      entry: {
+        account_id: recurring.account_id,
+        name: "Unrelated",
+        date: Date.current,
+        currency: "USD",
+        amount: 12,
+        nature: "outflow",
+        entryable_type: "Transaction"
+      }
+    }
+
+    recurring.reload
+    assert_equal original_date, recurring.last_occurrence_date
+    assert_equal 1, recurring.occurrence_count
+  end
+
+  test "create with recurring_transaction_id from another family does not record an occurrence" do
+    other_family = families(:empty)
+    other_account = other_family.accounts.create!(name: "Other", balance: 0, currency: "USD", accountable: Depository.new)
+    recurring = other_family.recurring_transactions.create!(
+      account: other_account,
+      name: "Should not leak",
+      amount: 50,
+      currency: "USD",
+      expected_day_of_month: Date.current.day,
+      last_occurrence_date: 1.month.ago.to_date,
+      next_expected_date: 5.days.from_now.to_date,
+      status: "active",
+      manual: true,
+      occurrence_count: 1
+    )
+    original_date = recurring.last_occurrence_date
+
+    post transactions_url, params: {
+      recurring_transaction_id: recurring.id,
+      entry: {
+        account_id: @entry.account_id,
+        name: "Mine",
+        date: Date.current,
+        currency: "USD",
+        amount: 50,
+        nature: "outflow",
+        entryable_type: "Transaction"
+      }
+    }
+
+    recurring.reload
+    assert_equal original_date, recurring.last_occurrence_date
+    assert_equal 1, recurring.occurrence_count
+  end
+
   test "new preloads transaction form option data" do
     family = families(:empty)
     user = users(:empty)
@@ -763,6 +946,23 @@ end
   end
 
   private
+    # Both recurring fixtures are auto-detected, so manual rows are built here
+    # rather than added to the fixture file.
+    def create_manual_recurring(amount:, merchant: merchants(:amazon))
+      @user.family.recurring_transactions.create!(
+        account: @entry.account,
+        merchant: merchant,
+        amount: amount,
+        currency: "USD",
+        expected_day_of_month: 10,
+        last_occurrence_date: 1.month.ago.to_date,
+        next_expected_date: 10.days.from_now.to_date,
+        status: "active",
+        manual: true,
+        occurrence_count: 1
+      )
+    end
+
     def rendered_entry_ids
       css_select("turbo-frame[id^='entry_']").map { |node| node["id"].delete_prefix("entry_") }
     end

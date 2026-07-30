@@ -27,9 +27,12 @@
     </section>
   <% end %>
 
+  <%# Not a Transfer attribute — carries the recurring row through to #create so the occurrence can be recorded. %>
+  <%= hidden_field_tag :recurring_transaction_id, params[:recurring_transaction_id] if params[:recurring_transaction_id].present? %>
+
   <section class="space-y-2">
     <%= f.collection_select :from_account_id, @accounts, :id, :name, { prompt: t(".select_account"), label: t(".from"), selected: @from_account_id, variant: :logo }, { required: true, data: { transfer_form_target: "fromAccount", action: "change->transfer-form#checkCurrencyDifference" } } %>
-    <%= f.collection_select :to_account_id, @accounts, :id, :name, { prompt: t(".select_account"), label: t(".to"), variant: :logo }, { required: true, data: { transfer_form_target: "toAccount", action: "change->transfer-form#checkCurrencyDifference" } } %>
+    <%= f.collection_select :to_account_id, @accounts, :id, :name, { prompt: t(".select_account"), label: t(".to"), selected: @to_account_id, variant: :logo }, { required: true, data: { transfer_form_target: "toAccount", action: "change->transfer-form#checkCurrencyDifference" } } %>
 
     <%= f.date_field :date, value: transfer.inflow_transaction&.entry&.date || Date.current, label: t(".date"), required: true, max: Date.current, data: { transfer_form_target: "date", action: "change->transfer-form#checkCurrencyDifference" } %>
 

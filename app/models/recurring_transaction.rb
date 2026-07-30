@@ -356,17 +356,19 @@ class RecurringTransaction < ApplicationRecord
     end
   end
 
+  # The amount to show (and to prefill a new entry with) for an upcoming
+  # occurrence. Manual recurring rows track a running average across occurrences
+  # with differing amounts, so prefer it over the seed amount when present.
+  def display_amount
+    return expected_amount_avg if manual? && expected_amount_avg.present?
+
+    amount
+  end
+
   # Get the projected transaction for display
   def projected_entry
     return nil unless active?
     return nil unless next_expected_date.future?
-
-    # Use average amount for manual recurring with variance, otherwise use fixed amount
-    display_amount = if manual? && expected_amount_avg.present?
-      expected_amount_avg
-    else
-      amount
-    end
 
     OpenStruct.new(
       date: next_expected_date,

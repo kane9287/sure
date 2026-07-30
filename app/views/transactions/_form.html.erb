@@ -10,6 +10,8 @@
 
     <%= f.hidden_field :nature, value: params[:nature] || "outflow", data: { "transaction-type-tabs-target": "natureField" } %>
     <%= f.hidden_field :entryable_type, value: "Transaction" %>
+    <%# Not an Entry attribute — carries the recurring row through to #create so the occurrence can be recorded. %>
+    <%= hidden_field_tag :recurring_transaction_id, params[:recurring_transaction_id] if params[:recurring_transaction_id].present? %>
   </section>
 
   <section class="space-y-2">

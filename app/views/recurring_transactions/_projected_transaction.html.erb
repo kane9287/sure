@@ -54,12 +54,33 @@
     <span class="text-xs text-secondary"><%= t("recurring_transactions.recurring") %></span>
   </div>
 
-  <div class="col-span-2 ml-auto text-right shrink-0">
-    <% display_amount = recurring_transaction.manual? && recurring_transaction.expected_amount_avg.present? ? recurring_transaction.expected_amount_avg : recurring_transaction.amount %>
-    <% if recurring_transaction.transfer? %>
-      <%= content_tag :p, format_money(Money.new(display_amount.abs, recurring_transaction.currency)), class: [ "font-medium", "privacy-sensitive", "text-secondary" ] %>
-    <% else %>
-      <%= content_tag :p, format_money(-Money.new(display_amount, recurring_transaction.currency)), class: ["font-medium", "privacy-sensitive", display_amount.negative? ? "text-success" : "text-subdued"] %>
+  <div class="col-span-2 ml-auto shrink-0 flex items-center justify-end gap-1">
+    <% if recurring_transaction.manual? %>
+      <%# Transfers need the two-account form, everything else the transaction form. %>
+      <% occurrence_path = if recurring_transaction.transfer?
+           new_transfer_path(recurring_transaction_id: recurring_transaction.id)
+         else
+           new_transaction_path(recurring_transaction_id: recurring_transaction.id)
+         end %>
+      <%= render DS::Link.new(
+        icon: "plus",
+        variant: "outline",
+        size: :sm,
+        href: occurrence_path,
+        frame: :modal,
+        class: "!w-6 !h-6 pointer-coarse:!w-11 pointer-coarse:!h-11",
+        title: t("recurring_transactions.add_occurrence"),
+        aria: { label: t("recurring_transactions.add_occurrence") }
+      ) %>
     <% end %>
+
+    <div class="text-right">
+      <% display_amount = recurring_transaction.display_amount %>
+      <% if recurring_transaction.transfer? %>
+        <%= content_tag :p, format_money(Money.new(display_amount.abs, recurring_transaction.currency)), class: [ "font-medium", "privacy-sensitive", "text-secondary" ] %>
+      <% else %>
+        <%= content_tag :p, format_money(-Money.new(display_amount, recurring_transaction.currency)), class: ["font-medium", "privacy-sensitive", display_amount.negative? ? "text-success" : "text-subdued"] %>
+      <% end %>
+    </div>
   </div>
 </div>
