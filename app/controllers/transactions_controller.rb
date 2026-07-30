@@ -54,12 +54,12 @@ class TransactionsController < ApplicationController
 
     @uncategorized_count = Current.accessible_entries.uncategorized_transactions.count
 
-    # Load projected recurring transactions for next 10 days
+    # Load projected recurring transactions for next 16 days
     @projected_recurring = Current.family.recurring_transactions
                                   .accessible_by(Current.user)
                                   .active
                                   .where("next_expected_date <= ? AND next_expected_date >= ?",
-                                         10.days.from_now.to_date,
+                                         16.days.from_now.to_date,
                                          Date.current)
                                   .includes(:merchant)
 

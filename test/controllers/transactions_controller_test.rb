@@ -348,6 +348,46 @@ end
     assert_select "#total-expense", text: totals.transfer_outflow_money.format
   end
 
+  test "upcoming tab includes recurring transactions due within 16 days but not beyond" do
+    family = families(:empty)
+    sign_in users(:empty)
+    account = family.accounts.create! name: "Test", balance: 0, currency: "USD", accountable: Depository.new
+    merchant = family.merchants.create! name: "Test Merchant"
+
+    within_window_date = 16.days.from_now.to_date
+    beyond_window_date = 17.days.from_now.to_date
+
+    family.recurring_transactions.create!(
+      account: account,
+      merchant: merchant,
+      amount: 50,
+      currency: "USD",
+      expected_day_of_month: within_window_date.day,
+      next_expected_date: within_window_date,
+      status: "active",
+      manual: true,
+      occurrence_count: 1
+    )
+
+    family.recurring_transactions.create!(
+      account: account,
+      merchant: merchant,
+      amount: 75,
+      currency: "USD",
+      expected_day_of_month: beyond_window_date.day,
+      next_expected_date: beyond_window_date,
+      status: "active",
+      manual: true,
+      occurrence_count: 1
+    )
+
+    get transactions_url
+
+    assert_response :success
+    assert_select "#upcoming-group-#{within_window_date}", count: 1
+    assert_select "#upcoming-group-#{beyond_window_date}", count: 0
+  end
+
   test "mark_as_recurring creates a manual recurring transaction" do
     family = families(:empty)
     sign_in users(:empty)

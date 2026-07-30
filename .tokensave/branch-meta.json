@@ -1,0 +1,10 @@
+{
+  "default_branch": "pnw-financial",
+  "branches": {
+    "pnw-financial": {
+      "db_file": "tokensave.db",
+      "created_at": "1784902558",
+      "last_synced_at": "1784902558"
+    }
+  }
+}
