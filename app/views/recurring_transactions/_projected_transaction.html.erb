@@ -68,13 +68,15 @@
          else
            new_transaction_path(recurring_transaction_id: recurring_transaction.id)
          end %>
+      <%# Compact row: the standard 44px coarse-pointer square overwhelms this line,
+          so this button opts down to 32px (still above the WCAG 2.5.8 24px floor). %>
       <%= render DS::Link.new(
         icon: "plus",
         variant: "outline",
         size: :sm,
         href: occurrence_path,
         frame: :modal,
-        class: "!w-6 !h-6 pointer-coarse:!w-11 pointer-coarse:!h-11",
+        class: "!w-6 !h-6 pointer-coarse:!w-8 pointer-coarse:!h-8",
         title: t("recurring_transactions.add_occurrence"),
         aria: { label: t("recurring_transactions.add_occurrence") }
       ) %>
