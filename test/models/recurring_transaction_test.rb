@@ -1106,4 +1106,44 @@ class RecurringTransactionTest < ActiveSupport::TestCase
       @family.recurring_transactions.create!(base_attrs)
     end
   end
+
+  test "logged_on_or_after? only counts matching entries on or after the given date" do
+    due_date = 1.day.ago.to_date
+
+    recurring = @family.recurring_transactions.create!(
+      account: @account,
+      merchant: @merchant,
+      amount: 15.99,
+      currency: "USD",
+      expected_day_of_month: due_date.day,
+      last_occurrence_date: 1.month.ago.to_date,
+      next_expected_date: due_date,
+      status: "active",
+      manual: true,
+      occurrence_count: 1
+    )
+
+    assert_not recurring.logged_on_or_after?(due_date)
+
+    # A match from the previous cycle must not satisfy this occurrence.
+    @account.entries.create!(
+      date: due_date - 1.month,
+      amount: 15.99,
+      currency: "USD",
+      name: "Netflix",
+      entryable: Transaction.new(merchant: @merchant)
+    )
+
+    assert_not recurring.logged_on_or_after?(due_date)
+
+    @account.entries.create!(
+      date: due_date,
+      amount: 15.99,
+      currency: "USD",
+      name: "Netflix",
+      entryable: Transaction.new(merchant: @merchant)
+    )
+
+    assert recurring.logged_on_or_after?(due_date)
+  end
 end

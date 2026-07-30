@@ -56,14 +56,22 @@ class TransactionsController < ApplicationController
 
     @uncategorized_count = Current.accessible_entries.uncategorized_transactions.count
 
-    # Load projected recurring transactions for next 16 days
+    # Projected recurring transactions: a short window back (so a just-missed
+    # manual occurrence is still one click away) through the lookahead.
+    window_start = RecurringTransaction::UPCOMING_LOOKBACK_DAYS.days.ago.to_date
+    window_end = RecurringTransaction::UPCOMING_LOOKAHEAD_DAYS.days.from_now.to_date
+
     @projected_recurring = Current.family.recurring_transactions
                                   .accessible_by(Current.user)
                                   .active
-                                  .where("next_expected_date <= ? AND next_expected_date >= ?",
-                                         16.days.from_now.to_date,
-                                         Date.current)
+                                  .where(next_expected_date: window_start..window_end)
                                   .includes(:merchant)
+                                  .reject do |recurring|
+                                    # An already-due row whose occurrence was entered by hand never
+                                    # advances next_expected_date, so it would otherwise read as unpaid.
+                                    recurring.next_expected_date <= Date.current &&
+                                      recurring.logged_on_or_after?(recurring.next_expected_date)
+                                  end
 
     @breadcrumbs = [ [ t("breadcrumbs.home"), root_path ], [ t("breadcrumbs.transactions"), nil ] ]
   end

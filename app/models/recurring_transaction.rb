@@ -13,6 +13,13 @@ class RecurringTransaction < ApplicationRecord
 
   enum :status, { active: "active", inactive: "inactive" }
 
+  # Window used by the Upcoming tab. The backward edge exists because this
+  # ledger is hand-entered: an occurrence that came due yesterday still needs a
+  # one-click way to be logged, since next_expected_date only advances via
+  # record_occurrence!.
+  UPCOMING_LOOKBACK_DAYS = 2
+  UPCOMING_LOOKAHEAD_DAYS = 16
+
   validates :amount, presence: true
   validates :currency, presence: true
   validates :expected_day_of_month, presence: true, numericality: { greater_than: 0, less_than_or_equal_to: 31 }
@@ -280,6 +287,15 @@ class RecurringTransaction < ApplicationRecord
       # Match by entry name
       entries.where(name: name)
     end
+  end
+
+  # True when an entry matching this pattern has already been recorded on or
+  # after `date`. Hand-entered occurrences (as opposed to the "Log this
+  # occurrence" button, which calls record_occurrence!) never advance
+  # next_expected_date, so without this a paid bill would linger in the
+  # lookback window looking unpaid.
+  def logged_on_or_after?(date)
+    matching_transactions.any? { |entry| entry.date >= date }
   end
 
   # Check if this recurring transaction has amount variance configured

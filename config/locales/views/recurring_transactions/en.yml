@@ -10,6 +10,9 @@ en:
     expected_in:
       one: "Expected in %{count} day"
       other: "Expected in %{count} days"
+    expected_days_ago:
+      one: "Expected %{count} day ago"
+      other: "Expected %{count} days ago"
     day_of_month: Day %{day} of month
     identify_patterns: Identify Patterns
     cleanup_stale: Clean Up Stale

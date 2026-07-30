@@ -388,6 +388,69 @@ end
     assert_select "#upcoming-group-#{beyond_window_date}", count: 0
   end
 
+  test "upcoming tab includes recently missed recurring transactions but not older ones" do
+    family = families(:empty)
+    sign_in users(:empty)
+    account = family.accounts.create! name: "Test", balance: 0, currency: "USD", accountable: Depository.new
+    merchant = family.merchants.create! name: "Test Merchant"
+
+    within_lookback_date = RecurringTransaction::UPCOMING_LOOKBACK_DAYS.days.ago.to_date
+    beyond_lookback_date = (RecurringTransaction::UPCOMING_LOOKBACK_DAYS + 1).days.ago.to_date
+
+    [ [ within_lookback_date, 50 ], [ beyond_lookback_date, 75 ] ].each do |date, amount|
+      family.recurring_transactions.create!(
+        account: account,
+        merchant: merchant,
+        amount: amount,
+        currency: "USD",
+        expected_day_of_month: date.day,
+        next_expected_date: date,
+        status: "active",
+        manual: true,
+        occurrence_count: 1
+      )
+    end
+
+    get transactions_url
+
+    assert_response :success
+    assert_select "#upcoming-group-#{within_lookback_date}", count: 1
+    assert_select "#upcoming-group-#{beyond_lookback_date}", count: 0
+  end
+
+  test "upcoming tab hides a missed recurring transaction once its occurrence is entered by hand" do
+    family = families(:empty)
+    sign_in users(:empty)
+    account = family.accounts.create! name: "Test", balance: 0, currency: "USD", accountable: Depository.new
+    merchant = family.merchants.create! name: "Test Merchant"
+
+    due_date = 1.day.ago.to_date
+
+    family.recurring_transactions.create!(
+      account: account,
+      merchant: merchant,
+      amount: 50,
+      currency: "USD",
+      expected_day_of_month: due_date.day,
+      next_expected_date: due_date,
+      status: "active",
+      manual: true,
+      occurrence_count: 1
+    )
+
+    get transactions_url
+    assert_response :success
+    assert_select "#upcoming-group-#{due_date}", count: 1
+
+    # Entered by hand rather than via "Log this occurrence", so
+    # next_expected_date is untouched and only the matcher can retire the row.
+    create_transaction(account: account, amount: 50, date: due_date, merchant: merchant)
+
+    get transactions_url
+    assert_response :success
+    assert_select "#upcoming-group-#{due_date}", count: 0
+  end
+
   test "mark_as_recurring creates a manual recurring transaction" do
     family = families(:empty)
     sign_in users(:empty)
