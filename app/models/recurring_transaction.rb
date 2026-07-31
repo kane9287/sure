@@ -240,6 +240,23 @@ class RecurringTransaction < ApplicationRecord
     matching_entries.map(&:amount)
   end
 
+  UpcomingTotals = Data.define(:income_money, :expense_money)
+
+  # Sums upcoming (non-transfer) recurring transactions into income/expense
+  # buckets, family-currency-only (mirrors CashFlowWarningGenerator — avoids
+  # needing an FX lookup for a summary stat).
+  def self.upcoming_totals(recurring_transactions, currency:)
+    eligible = recurring_transactions.reject(&:transfer?).select { |r| r.currency == currency }
+
+    income = eligible.sum { |r| r.display_amount.negative? ? -r.display_amount : 0 }
+    expense = eligible.sum { |r| r.display_amount.positive? ? r.display_amount : 0 }
+
+    UpcomingTotals.new(
+      income_money: Money.new(income, currency),
+      expense_money: Money.new(expense, currency)
+    )
+  end
+
   # Calculate next expected date from today
   def self.calculate_next_expected_date_from_today(expected_day)
     today = Date.current

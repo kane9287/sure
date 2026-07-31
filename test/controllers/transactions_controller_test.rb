@@ -1008,6 +1008,69 @@ end
     assert_nil created_entry.transaction.extra["exchange_rate"]
   end
 
+  test "summary shows upcoming income and expenses within the next 16 days" do
+    family = families(:empty)
+    sign_in users(:empty)
+    account = family.accounts.create! name: "Test", balance: 0, currency: "USD", accountable: Depository.new
+    merchant = family.merchants.create! name: "Test Merchant"
+
+    within_window_date = 10.days.from_now.to_date
+    beyond_window_date = 17.days.from_now.to_date
+
+    family.recurring_transactions.create!(
+      account: account,
+      merchant: merchant,
+      name: nil,
+      amount: -500, # income
+      currency: "USD",
+      expected_day_of_month: within_window_date.day,
+      next_expected_date: within_window_date,
+      status: "active",
+      occurrence_count: 1
+    )
+
+    family.recurring_transactions.create!(
+      account: account,
+      name: "Rent",
+      amount: 1200, # expense
+      currency: "USD",
+      expected_day_of_month: within_window_date.day,
+      next_expected_date: within_window_date,
+      status: "active",
+      occurrence_count: 1
+    )
+
+    # Outside the 16-day window — must not be counted
+    family.recurring_transactions.create!(
+      account: account,
+      name: "Yearly insurance",
+      amount: 900,
+      currency: "USD",
+      expected_day_of_month: beyond_window_date.day,
+      next_expected_date: beyond_window_date,
+      status: "active",
+      occurrence_count: 1
+    )
+
+    get transactions_url
+
+    assert_response :success
+    assert_select "#total-upcoming-income", text: Money.new(500, "USD").format
+    assert_select "#total-upcoming-expense", text: Money.new(1200, "USD").format
+  end
+
+  test "summary hides upcoming income and expenses when recurring transactions are disabled" do
+    family = families(:empty)
+    family.update!(recurring_transactions_disabled: true)
+    sign_in users(:empty)
+
+    get transactions_url
+
+    assert_response :success
+    assert_select "#total-upcoming-income", count: 0
+    assert_select "#total-upcoming-expense", count: 0
+  end
+
   private
     # Both recurring fixtures are auto-detected, so manual rows are built here
     # rather than added to the fixture file.

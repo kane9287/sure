@@ -73,6 +73,13 @@ class TransactionsController < ApplicationController
                                       recurring.logged_on_or_after?(recurring.next_expected_date)
                                   end
 
+    @upcoming_totals = unless Current.family.recurring_transactions_disabled?
+      RecurringTransaction.upcoming_totals(
+        @projected_recurring.select { |r| r.next_expected_date >= Date.current },
+        currency: Current.family.currency
+      )
+    end
+
     @breadcrumbs = [ [ t("breadcrumbs.home"), root_path ], [ t("breadcrumbs.transactions"), nil ] ]
   end
 

@@ -1146,4 +1146,68 @@ class RecurringTransactionTest < ActiveSupport::TestCase
 
     assert recurring.logged_on_or_after?(due_date)
   end
+
+  test "upcoming_totals sums income and expenses, excluding transfers and mismatched currency" do
+    # Expense (positive amount, per Sure sign convention)
+    @family.recurring_transactions.create!(
+      account: @account,
+      name: "Rent",
+      amount: 1500,
+      currency: "USD",
+      expected_day_of_month: 1,
+      last_occurrence_date: 1.month.ago.to_date,
+      next_expected_date: 5.days.from_now.to_date,
+      status: "active",
+      occurrence_count: 1
+    )
+
+    # Income (negative amount)
+    @family.recurring_transactions.create!(
+      account: @account,
+      name: "Paycheck",
+      amount: -2000,
+      currency: "USD",
+      expected_day_of_month: 1,
+      last_occurrence_date: 1.month.ago.to_date,
+      next_expected_date: 10.days.from_now.to_date,
+      status: "active",
+      occurrence_count: 1
+    )
+
+    # Recurring transfer — must be excluded from both buckets
+    destination = @family.accounts.create!(name: "Savings", balance: 0, currency: "USD", accountable: Depository.new)
+    @family.recurring_transactions.create!(
+      account: @account,
+      destination_account: destination,
+      name: "Transfer to Savings",
+      amount: 300,
+      currency: "USD",
+      expected_day_of_month: 1,
+      last_occurrence_date: 1.month.ago.to_date,
+      next_expected_date: 3.days.from_now.to_date,
+      status: "active",
+      occurrence_count: 1
+    )
+
+    # Mismatched currency — must be excluded
+    @family.recurring_transactions.create!(
+      account: @account,
+      name: "Foreign expense",
+      amount: 100,
+      currency: "EUR",
+      expected_day_of_month: 1,
+      last_occurrence_date: 1.month.ago.to_date,
+      next_expected_date: 2.days.from_now.to_date,
+      status: "active",
+      occurrence_count: 1
+    )
+
+    totals = RecurringTransaction.upcoming_totals(
+      @family.recurring_transactions.active,
+      currency: "USD"
+    )
+
+    assert_equal Money.new(2000, "USD"), totals.income_money
+    assert_equal Money.new(1500, "USD"), totals.expense_money
+  end
 end

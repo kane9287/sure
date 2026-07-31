@@ -1,16 +1,24 @@
-<%# locals: (totals:) %>
+<%# locals: (totals:, upcoming_totals:) %>
 <%# Show Inflow/Outflow labels only when the result set contains exclusively transfers
     (income and expense are both $0). For mixed filters (e.g. Expense+Transfer),
     we keep Income/Expenses labels — transfer amounts aren't included in the summary
     bar in that case, though the transaction list still shows both types. %>
 <% show_transfers = totals.income_money.zero? && totals.expense_money.zero? &&
    (totals.transfer_inflow_money.amount > 0 || totals.transfer_outflow_money.amount > 0) %>
-<div class="grid grid-cols-1 md:grid-cols-3 bg-container rounded-xl shadow-border-xs md:divide-x divide-y md:divide-y-0 divide-alpha-black-100 theme-dark:divide-alpha-white-200">
-  <div class="p-4 space-y-2">
+<%# Recurring projections aren't transfer-aware the way `totals` is, so the
+    upcoming cells only make sense alongside the normal Income/Expenses view. %>
+<% show_upcoming = upcoming_totals.present? && !show_transfers %>
+<%# Column dividers are applied per-cell (rather than the container-level
+    `divide-x` utility) so the Income/Upcoming income and Expenses/Upcoming
+    expenses pairs can sit flush against each other on desktop, with a divider
+    only between the three logical groups (Total, Income, Expenses). %>
+<% divider_classes = "md:border-r border-alpha-black-100 theme-dark:border-alpha-white-200" %>
+<div class="grid <%= show_upcoming ? "grid-cols-2 md:grid-cols-5" : "grid-cols-1 md:grid-cols-3" %> bg-container rounded-xl shadow-border-xs divide-y md:divide-y-0 divide-alpha-black-100 theme-dark:divide-alpha-white-200">
+  <div class="<%= "col-span-2 md:col-span-1" if show_upcoming %> <%= divider_classes %> p-4 space-y-2">
     <p class="text-sm text-secondary"><%= t("transactions.summary.total_transactions") %></p>
     <p class="text-primary font-medium text-xl privacy-sensitive" id="total-transactions"><%= totals.count.round(0) %></p>
   </div>
-  <div class="p-4 space-y-2">
+  <div class="<%= divider_classes unless show_upcoming %> p-4 space-y-2">
     <% if show_transfers %>
       <p class="text-sm text-secondary"><%= t("transactions.summary.inflow") %></p>
       <p class="text-primary font-medium text-xl privacy-sensitive" id="total-income">
@@ -23,6 +31,14 @@
       </p>
     <% end %>
   </div>
+  <% if show_upcoming %>
+    <div class="<%= divider_classes %> p-4 space-y-2">
+      <p class="text-sm text-secondary"><%= t("transactions.summary.upcoming_income") %></p>
+      <p class="text-primary font-medium text-xl privacy-sensitive" id="total-upcoming-income">
+        <%= upcoming_totals.income_money.format %>
+      </p>
+    </div>
+  <% end %>
   <div class="p-4 space-y-2">
     <% if show_transfers %>
       <p class="text-sm text-secondary"><%= t("transactions.summary.outflow") %></p>
@@ -36,4 +52,12 @@
       </p>
     <% end %>
   </div>
+  <% if show_upcoming %>
+    <div class="p-4 space-y-2">
+      <p class="text-sm text-secondary"><%= t("transactions.summary.upcoming_expenses") %></p>
+      <p class="text-primary font-medium text-xl privacy-sensitive" id="total-upcoming-expense">
+        <%= upcoming_totals.expense_money.format %>
+      </p>
+    </div>
+  <% end %>
 </div>

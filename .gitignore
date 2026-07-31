@@ -125,6 +125,9 @@ scripts/
 # Auto Claude data directory
 .auto-claude/
 
+#claude token directory
+.tokensave
+
 # Auto Claude generated files
 .auto-claude-security.json
 .auto-claude-status
