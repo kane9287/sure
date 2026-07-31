@@ -1,7 +1,7 @@
 name: Build and Push
 on:
   push:
-    branches: [pnw-finance]
+    branches: [pnw-financial]
     paths-ignore: ['**.md', 'docs/**']
 
 concurrency:
