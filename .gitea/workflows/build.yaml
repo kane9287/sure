@@ -1,0 +1,37 @@
+name: Build and Push
+on:
+  push:
+    branches: [pnw-financial]
+    paths-ignore: ['**.md', 'docs/**']
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  IMAGE: my-gitea.nerdsandgeeks.net/christopher/sure-pnw-financial
+
+jobs:
+  build:
+    runs-on: docker
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set version
+        id: version
+        run: echo "tag=$(date +%Y.%m.%d)-${GITHUB_SHA:0:7}" >> "$GITHUB_OUTPUT"
+
+      - name: Log in to registry
+        env:
+          REGISTRY_USER: ${{ secrets.REGISTRY_USER }}
+          REGISTRY_PASSWORD: ${{ secrets.REGISTRY_PASSWORD }}
+        run: echo "$REGISTRY_PASSWORD" | docker login my-gitea.nerdsandgeeks.net -u "$REGISTRY_USER" --password-stdin
+
+      - name: Build and push
+        run: |
+          docker build -t "$IMAGE:${{ steps.version.outputs.tag }}" -t "$IMAGE:latest" .
+          docker push --all-tags "$IMAGE"
+
+      - name: Log out
+        if: always()
+        run: docker logout my-gitea.nerdsandgeeks.net
