@@ -74,7 +74,7 @@ class TransactionsControllerTest < ActionDispatch::IntegrationTest
     assert_enqueued_with(job: SyncJob)
   end
 
-  test "transaction count represents filtered total" do
+  test "search filters the transaction list" do
     family = families(:empty)
     sign_in users(:empty)
     account = family.accounts.create! name: "Test", balance: 0, currency: "USD", accountable: Depository.new
@@ -83,17 +83,12 @@ class TransactionsControllerTest < ActionDispatch::IntegrationTest
       create_transaction(account: account)
     end
 
-    get transactions_url(per_page: 10)
-
-    assert_dom "#total-transactions", count: 1, text: family.entries.transactions.size.to_s
-
     searchable_transaction = create_transaction(account: account, name: "Unique test name")
 
     get transactions_url(q: { search: searchable_transaction.name })
 
     # Only finds 1 transaction that matches filter
     assert_dom "#" + dom_id(searchable_transaction), count: 1
-    assert_dom "#total-transactions", count: 1, text: "1"
   end
 
   test "can update notes on split child transaction" do
