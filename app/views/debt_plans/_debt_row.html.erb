@@ -1,0 +1,63 @@
+<%# locals: (account:, link:, checked:, first: false) %>
+
+<%# The engine treats a missing APR as 0% and a missing minimum as nothing —
+    both quietly distort the result — so the accountable's own values are
+    prefilled here and anything still blank gets a "needs input" badge. %>
+<% default_apr = DebtPlan::Debt.accountable_apr(account.accountable)&.to_d %>
+<% default_minimum = DebtPlan::Debt.accountable_minimum(account.accountable)&.to_d %>
+<% apr_value = (link&.apr_override&.to_d || default_apr)&.to_s("F") %>
+<% minimum_value = (link&.minimum_payment_override&.to_d || default_minimum)&.to_s("F") %>
+<% checkbox_id = "debt_plan_account_ids_#{account.id}" %>
+
+<div class="px-3 py-2.5 <%= "border-t border-subdued" unless first %>"
+     data-debt-plan-form-target="row"
+     data-default-minimum="<%= default_minimum&.to_s("F") %>">
+  <div class="flex items-center gap-3">
+    <label class="flex items-center gap-3 flex-1 min-w-0 cursor-pointer" for="<%= checkbox_id %>">
+      <%= check_box_tag "debt_plan[account_ids][]",
+                        account.id,
+                        checked,
+                        id: checkbox_id,
+                        class: "checkbox checkbox--light shrink-0",
+                        data: { action: "change->debt-plan-form#toggleRow" } %>
+      <div class="min-w-0">
+        <p class="text-sm font-medium text-primary truncate"><%= account.name %></p>
+        <p class="text-xs text-secondary tabular-nums privacy-sensitive">
+          <%= Money.new(account.balance, account.currency).format %>
+        </p>
+      </div>
+    </label>
+
+    <% if default_apr.blank? || default_minimum.blank? %>
+      <%= render DS::Pill.new(label: t("debt_plans.form.needs_input"), tone: :warning, marker: false) %>
+    <% end %>
+  </div>
+
+  <div class="<%= "hidden" unless checked %> mt-2.5 pl-8 grid grid-cols-2 gap-2" data-debt-plan-form-details>
+    <div>
+      <%= label_tag "debt_plan_overrides_#{account.id}_apr",
+                    t("debt_plans.form.fields.apr"),
+                    class: "block text-xs text-secondary mb-1" %>
+      <%= text_field_tag "debt_plan[overrides][#{account.id}][apr]",
+                         apr_value,
+                         id: "debt_plan_overrides_#{account.id}_apr",
+                         placeholder: t("debt_plans.form.fields.apr_placeholder"),
+                         inputmode: "decimal",
+                         autocomplete: "off",
+                         class: "w-full rounded-md border border-primary bg-container px-2.5 py-1.5 text-sm tabular-nums text-primary placeholder:text-subdued focus-ring" %>
+    </div>
+    <div>
+      <%= label_tag "debt_plan_overrides_#{account.id}_minimum",
+                    t("debt_plans.form.fields.minimum_payment"),
+                    class: "block text-xs text-secondary mb-1" %>
+      <%= text_field_tag "debt_plan[overrides][#{account.id}][minimum]",
+                         minimum_value,
+                         id: "debt_plan_overrides_#{account.id}_minimum",
+                         placeholder: t("debt_plans.form.fields.minimum_payment_placeholder"),
+                         inputmode: "decimal",
+                         autocomplete: "off",
+                         data: { debt_plan_form_minimum: true, action: "input->debt-plan-form#recalculate" },
+                         class: "w-full rounded-md border border-primary bg-container px-2.5 py-1.5 text-sm tabular-nums text-primary placeholder:text-subdued focus-ring privacy-sensitive" %>
+    </div>
+  </div>
+</div>

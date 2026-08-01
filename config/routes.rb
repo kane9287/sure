@@ -784,6 +784,8 @@ Rails.application.routes.draw do
   get "terms", to: terms_url ? redirect(terms_url) : "pages#terms"
   get "intro", to: "pages#intro"
 
+  resources :debt_plans
+
   # Admin namespace for super admin functionality
   namespace :admin do
     resources :sso_providers do

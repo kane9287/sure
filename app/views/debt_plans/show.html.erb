@@ -1,0 +1,63 @@
+<div class="@container space-y-6 pb-6 lg:pb-12">
+  <header class="flex items-start justify-between gap-3">
+    <div class="min-w-0">
+      <h1 class="text-2xl font-semibold text-primary truncate"><%= @debt_plan.name %></h1>
+      <p class="text-sm text-secondary mt-1 tabular-nums privacy-sensitive">
+        <%= t(".header_summary",
+               count: @debt_plan.debts.size,
+               balance: @debt_plan.total_balance_money.format(precision: 0),
+               budget: @debt_plan.monthly_budget_money.format(precision: 0)) %>
+      </p>
+    </div>
+
+    <div class="flex items-center gap-2 shrink-0">
+      <%= render DS::Link.new(text: t(".edit"), variant: "outline", href: edit_debt_plan_path(@debt_plan), icon: "pencil-line") %>
+      <%= render DS::Menu.new do |menu| %>
+        <% menu.with_item(
+             variant: "button",
+             text: t(".delete"),
+             href: debt_plan_path(@debt_plan),
+             method: :delete,
+             icon: "trash-2",
+             confirm: CustomConfirm.new(
+               title: t(".confirm_delete_title"),
+               body: t(".confirm_delete_body"),
+               btn_text: t(".confirm_delete_cta"),
+               destructive: true
+             ),
+             data: { turbo_frame: :_top }
+           ) %>
+      <% end %>
+    </div>
+  </header>
+
+  <%= render "warnings", debt_plan: @debt_plan %>
+
+  <% if @comparison.comparable? %>
+    <%= render "comparison", debt_plan: @debt_plan, comparison: @comparison %>
+  <% end %>
+
+  <%= render DS::Tabs.new(active_tab: @strategy, url_param_key: "strategy") do |tabs| %>
+    <% tabs.with_nav do |nav| %>
+      <% DebtPlan::STRATEGIES.each do |strategy| %>
+        <% nav.with_btn(id: strategy, label: t("debt_plans.strategies.#{strategy}")) %>
+      <% end %>
+    <% end %>
+
+    <% DebtPlan::STRATEGIES.each do |strategy| %>
+      <% tabs.with_panel(tab_id: strategy) do %>
+        <%= render "strategy_panel",
+                   debt_plan: @debt_plan,
+                   strategy: strategy,
+                   result: @debt_plan.schedule(strategy) %>
+      <% end %>
+    <% end %>
+  <% end %>
+
+  <% if @debt_plan.notes.present? %>
+    <section class="bg-container rounded-xl shadow-border-xs p-5">
+      <h2 class="text-[11px] font-medium uppercase tracking-wide text-secondary"><%= t(".notes") %></h2>
+      <p class="text-sm text-primary mt-2 whitespace-pre-line"><%= @debt_plan.notes %></p>
+    </section>
+  <% end %>
+</div>

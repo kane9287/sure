@@ -1,0 +1,31 @@
+<%# locals: (debt_plan:) %>
+
+<%# The three honest-answer cases most payoff calculators paper over. Each one
+    makes the projected date meaningless, so say so rather than quoting it. %>
+<% if debt_plan.underfunded? %>
+  <%= render DS::Alert.new(
+        variant: "error",
+        message: t("debt_plans.warnings.underfunded",
+                   budget: debt_plan.monthly_budget_money.format(precision: 0),
+                   minimums: debt_plan.total_minimums_money.format(precision: 0)),
+        live: :assertive
+      ) %>
+<% end %>
+
+<% if debt_plan.negative_amortization_debts.any? %>
+  <%= render DS::Alert.new(
+        variant: "warning",
+        message: t("debt_plans.warnings.negative_amortization",
+                   accounts: debt_plan.negative_amortization_debts.map(&:name).to_sentence),
+        live: :polite
+      ) %>
+<% end %>
+
+<% if debt_plan.incomplete_debts.any? %>
+  <%= render DS::Alert.new(
+        variant: "warning",
+        message: t("debt_plans.warnings.incomplete",
+                   accounts: debt_plan.incomplete_debts.map(&:name).to_sentence),
+        live: :polite
+      ) %>
+<% end %>

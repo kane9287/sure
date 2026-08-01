@@ -1,0 +1,14 @@
+<div class="max-w-3xl mx-auto py-8 px-4 @container">
+  <header class="mb-6 flex items-start gap-3">
+    <%= render DS::FilledIcon.new(variant: :container, icon: "trending-down", size: "md", rounded: true) %>
+    <div>
+      <h1 class="text-xl font-medium text-primary"><%= t(".heading") %></h1>
+      <p class="text-sm text-secondary mt-0.5"><%= t(".subtitle") %></p>
+    </div>
+  </header>
+
+  <%= render "form",
+             debt_plan: @debt_plan,
+             linkable_accounts: @linkable_accounts,
+             selected_account_ids: @selected_account_ids %>
+</div>

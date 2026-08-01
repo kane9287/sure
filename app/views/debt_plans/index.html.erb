@@ -1,0 +1,44 @@
+<div class="@container space-y-8 pb-6 lg:pb-12">
+  <header>
+    <h1 class="text-2xl font-semibold text-primary"><%= t(".title") %></h1>
+    <p class="text-sm text-secondary mt-1"><%= t(".subtitle") %></p>
+  </header>
+
+  <% if @debt_plans.empty? %>
+    <div class="bg-container rounded-xl shadow-border-xs">
+      <% if @linkable_account_count.zero? %>
+        <%= render DS::EmptyState.new(
+              icon: "trending-down",
+              title: t(".empty.no_liabilities_heading"),
+              description: t(".empty.no_liabilities_body")
+            ) do |empty_state| %>
+          <% empty_state.with_action do %>
+            <%= render DS::Link.new(text: t(".empty.add_account"), variant: "primary", href: accounts_path, icon: "plus") %>
+          <% end %>
+        <% end %>
+      <% else %>
+        <%= render DS::EmptyState.new(
+              icon: "trending-down",
+              title: t(".empty.heading"),
+              description: t(".empty.body")
+            ) do |empty_state| %>
+          <% empty_state.with_action do %>
+            <%= render DS::Link.new(text: t(".empty.new_plan"), variant: "primary", href: new_debt_plan_path, icon: "plus") %>
+          <% end %>
+        <% end %>
+      <% end %>
+    </div>
+  <% else %>
+    <section class="space-y-4">
+      <div class="flex items-center justify-end">
+        <%= render DS::Link.new(text: t(".new_plan"), variant: "primary", href: new_debt_plan_path, icon: "plus") %>
+      </div>
+
+      <div class="grid grid-cols-1 @2xl:grid-cols-2 @5xl:grid-cols-3 gap-3.5">
+        <% @debt_plans.each do |debt_plan| %>
+          <%= render "card", debt_plan: debt_plan %>
+        <% end %>
+      </div>
+    </section>
+  <% end %>
+</div>

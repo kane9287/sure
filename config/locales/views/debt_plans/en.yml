@@ -1,0 +1,142 @@
+---
+en:
+  debt_plans:
+    index:
+      title: Debt payoff
+      subtitle: Pick a strategy, name a monthly budget, see the day you're debt free.
+      new_plan: New plan
+      empty:
+        heading: No payoff plans yet
+        body: Choose the debts you want to clear, set what you can pay each month, and Sure will project the date you're free of them.
+        new_plan: Create your first plan
+        no_liabilities_heading: No debts to plan
+        no_liabilities_body: Add a credit card, loan, or other liability account first — a payoff plan is built from the balances you already track.
+        add_account: Add an account
+    # Partials get their own lazy-lookup scope: `t(".x")` in _card.html.erb
+    # resolves to debt_plans.card.x, not debt_plans.index.x.
+    card:
+      total_balance: Total balance
+      debt_free: Debt free
+      budget: Budget
+      per_month: "%{amount}/mo"
+      debt_count:
+        one: 1 debt
+        other: "%{count} debts"
+    new:
+      heading: New payoff plan
+      subtitle: Pick the debts, set a monthly budget, compare avalanche and snowball.
+      default_name: Debt payoff plan
+    edit:
+      heading: Edit payoff plan
+    show:
+      edit: Edit
+      delete: Delete plan
+      notes: Notes
+      header_summary:
+        one: "1 debt · %{balance} · %{budget}/mo"
+        other: "%{count} debts · %{balance} · %{budget}/mo"
+      confirm_delete_title: Delete this plan?
+      confirm_delete_body: The plan and its rate overrides are removed. Your accounts and balances are untouched.
+      confirm_delete_cta: Delete plan
+      chart_heading: Balance over time
+      order_heading: Payoff order
+      what_if_heading: Pay a little more
+      what_if_subtitle: What each extra monthly dollar buys you.
+      what_if_label: "+%{amount}/mo"
+      what_if_saving: "%{months} mo sooner · %{amount} less interest"
+      kpi:
+        debt_free: Debt free
+        total_interest: Total interest
+        total_paid: "%{amount} paid in total"
+        extra_payment: Extra each month
+        over_minimums: "on top of %{amount} in minimums"
+      row:
+        apr: "%{rate}% APR"
+        no_apr: No rate set
+        minimum: "%{amount}/mo minimum"
+        interest: "%{amount} interest"
+        not_paid_off: Not cleared
+    strategies:
+      avalanche: Avalanche
+      avalanche_hint: Highest interest rate first. Costs the least.
+      snowball: Snowball
+      snowball_hint: Smallest balance first. Fastest first win.
+    comparison:
+      heading: Avalanche vs. snowball
+      avalanche_saves: "Avalanche costs %{amount} less in interest."
+      interest_tie: Both strategies cost the same in interest here.
+      snowball_first_win:
+        one: Snowball clears your first debt 1 month sooner.
+        other: "Snowball clears your first debt %{count} months sooner."
+      selected: Selected
+      debt_free: Debt free
+      total_interest: Total interest
+    status:
+      paid_off:
+        pill: On track
+        short: On track
+        title: Debt free
+        body: Every debt in this plan clears on schedule.
+      never:
+        pill: No payoff date
+        short: No payoff date
+        title: This plan never clears
+        body: At this budget the balances outlast a 50-year projection. Raise the monthly budget or drop a debt from the plan.
+      underfunded:
+        pill: Under minimums
+        short: Under minimums
+        title: The budget is below your minimums
+        body: A payoff date can't be projected until the monthly budget covers every minimum payment.
+      negative_amortization:
+        pill: Growing balance
+        short: Growing balance
+        title: A balance is growing, not shrinking
+        body: At least one minimum payment is smaller than that debt's monthly interest, so its balance rises every month no matter how long you pay.
+    warnings:
+      underfunded: "Your budget of %{budget}/mo is below the %{minimums}/mo these debts require in minimum payments. Raise the budget or remove a debt to get a payoff date."
+      negative_amortization: "%{accounts}: the minimum payment doesn't cover a month of interest, so the balance grows on its own. Raising that minimum is the only way to make progress."
+      incomplete: "%{accounts}: missing an interest rate or minimum payment. A missing rate is treated as 0%%, which changes the payoff order. Edit the plan to fill them in."
+    duration:
+      months:
+        one: 1 mo
+        other: "%{count} mos"
+      years:
+        one: 1 yr
+        other: "%{count} yrs"
+      years_months: "%{years} %{months}"
+    chart:
+      balance: Balance
+      interest: Interest paid
+      aria_label: "Balance-over-time chart for %{name}"
+    form:
+      create: Create plan
+      save: Save changes
+      needs_input: Needs input
+      minimums_total: "Minimum payments total %{amount}/mo"
+      underfunded_warning: This budget is below the total minimum payments on the debts you selected.
+      fields:
+        name: Plan name
+        name_placeholder: Get out of debt, Card payoff…
+        strategy: Strategy
+        monthly_budget: Monthly budget
+        debts: Debts
+        debts_hint: Balances come from your accounts and refresh on every visit. Mortgages start unchecked.
+        constant_minimum_note: Minimum payments are assumed constant. Real card minimums usually shrink as the balance falls.
+        apr: APR (%)
+        apr_placeholder: e.g. 18.99
+        minimum_payment: Minimum / mo
+        minimum_payment_placeholder: e.g. 100
+        notes: Notes (optional)
+        notes_placeholder: Why this plan, what changes when it's done…
+      accountable_types:
+        credit_card: Credit cards
+        loan: Loans
+        other_liability: Other liabilities
+    create:
+      success: Payoff plan created.
+    update:
+      success: Payoff plan updated.
+    destroy:
+      success: Payoff plan deleted.
+    errors:
+      not_found: This payoff plan couldn't be found. It may have been deleted.
