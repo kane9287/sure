@@ -1,0 +1,21 @@
+---
+en:
+  activerecord:
+    attributes:
+      debt_plan:
+        name: Name
+        strategy: Strategy
+        monthly_budget: Monthly budget
+        currency: Currency
+        notes: Notes
+        linked_accounts: Debts
+    errors:
+      models:
+        debt_plan:
+          attributes:
+            base:
+              at_least_one_linked_account_required: Pick at least one debt to include in this plan.
+            linked_accounts:
+              must_be_liabilities: A payoff plan can only include credit cards, loans, and other liabilities.
+              currency_mismatch: All debts in a plan must share the same currency.
+              must_belong_to_family: Debts must belong to the same family as the plan.

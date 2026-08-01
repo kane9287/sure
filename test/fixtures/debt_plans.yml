@@ -1,0 +1,6 @@
+card_payoff:
+  family: dylan_family
+  name: Card payoff
+  strategy: avalanche
+  monthly_budget: 500
+  currency: USD

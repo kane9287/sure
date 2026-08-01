@@ -11,13 +11,9 @@
 <%# Column dividers are applied per-cell (rather than the container-level
     `divide-x` utility) so the Income/Upcoming income and Expenses/Upcoming
     expenses pairs can sit flush against each other on desktop, with a divider
-    only between the three logical groups (Total, Income, Expenses). %>
+    only between the two logical groups (Income, Expenses). %>
 <% divider_classes = "md:border-r border-alpha-black-100 theme-dark:border-alpha-white-200" %>
-<div class="grid <%= show_upcoming ? "grid-cols-2 md:grid-cols-5" : "grid-cols-1 md:grid-cols-3" %> bg-container rounded-xl shadow-border-xs divide-y md:divide-y-0 divide-alpha-black-100 theme-dark:divide-alpha-white-200">
-  <div class="<%= "col-span-2 md:col-span-1" if show_upcoming %> <%= divider_classes %> p-4 space-y-2">
-    <p class="text-sm text-secondary"><%= t("transactions.summary.total_transactions") %></p>
-    <p class="text-primary font-medium text-xl privacy-sensitive" id="total-transactions"><%= totals.count.round(0) %></p>
-  </div>
+<div class="grid <%= show_upcoming ? "grid-cols-2 md:grid-cols-4" : "grid-cols-1 md:grid-cols-2" %> bg-container rounded-xl shadow-border-xs divide-y md:divide-y-0 divide-alpha-black-100 theme-dark:divide-alpha-white-200">
   <div class="<%= divider_classes unless show_upcoming %> p-4 space-y-2">
     <% if show_transfers %>
       <p class="text-sm text-secondary"><%= t("transactions.summary.inflow") %></p>

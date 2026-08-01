@@ -1,0 +1,11 @@
+card_payoff_credit_card:
+  debt_plan: card_payoff
+  account: credit_card
+
+# OtherLiability carries no rate or minimum columns, so this link exercises the
+# override path the UI depends on.
+card_payoff_iou:
+  debt_plan: card_payoff
+  account: other_liability
+  apr_override: 6.5
+  minimum_payment_override: 25

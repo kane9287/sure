@@ -1,0 +1,94 @@
+<%# locals: (debt_plan:, strategy:, result:) %>
+
+<div class="space-y-4">
+  <section class="grid grid-cols-1 @3xl:grid-cols-3 gap-3">
+    <div class="bg-container rounded-xl shadow-border-xs px-5 py-5">
+      <p class="text-[11px] font-medium uppercase tracking-wide text-secondary"><%= t("debt_plans.show.kpi.debt_free") %></p>
+      <p class="text-3xl font-medium text-primary mt-2">
+        <%= result.paid_off? ? l(result.payoff_date, format: :long) : t("debt_plans.status.#{result.status}.short") %>
+      </p>
+      <p class="text-xs text-secondary mt-1"><%= debt_payoff_duration(result) || t("debt_plans.status.#{result.status}.pill") %></p>
+    </div>
+
+    <div class="bg-container rounded-xl shadow-border-xs px-5 py-5">
+      <p class="text-[11px] font-medium uppercase tracking-wide text-secondary"><%= t("debt_plans.show.kpi.total_interest") %></p>
+      <p class="text-3xl font-medium text-primary tabular-nums mt-2 privacy-sensitive">
+        <%= Money.new(result.total_interest, debt_plan.currency).format(precision: 0) %>
+      </p>
+      <p class="text-xs text-secondary mt-1 tabular-nums privacy-sensitive">
+        <%= t("debt_plans.show.kpi.total_paid", amount: Money.new(result.total_paid, debt_plan.currency).format(precision: 0)) %>
+      </p>
+    </div>
+
+    <div class="bg-container rounded-xl shadow-border-xs px-5 py-5">
+      <p class="text-[11px] font-medium uppercase tracking-wide text-secondary"><%= t("debt_plans.show.kpi.extra_payment") %></p>
+      <p class="text-3xl font-medium text-primary tabular-nums mt-2 privacy-sensitive">
+        <%= debt_plan.extra_payment_money.format(precision: 0) %>
+      </p>
+      <p class="text-xs text-secondary mt-1 tabular-nums privacy-sensitive">
+        <%= t("debt_plans.show.kpi.over_minimums", amount: debt_plan.total_minimums_money.format(precision: 0)) %>
+      </p>
+    </div>
+  </section>
+
+  <section class="bg-container rounded-xl shadow-border-xs p-5">
+    <h2 class="text-[11px] font-medium uppercase tracking-wide text-secondary mb-3"><%= t("debt_plans.show.chart_heading") %></h2>
+    <% if result.paid_off? %>
+      <div class="h-56 w-full"
+           data-controller="debt-payoff-chart"
+           data-debt-payoff-chart-aria-label-value="<%= t("debt_plans.chart.aria_label", name: debt_plan.name) %>"
+           data-debt-payoff-chart-data-value="<%= debt_plan.payoff_payload(strategy).to_json %>"></div>
+    <% else %>
+      <%= render DS::EmptyState.new(
+            icon: "triangle-alert",
+            title: t("debt_plans.status.#{result.status}.title"),
+            description: t("debt_plans.status.#{result.status}.body")
+          ) %>
+    <% end %>
+  </section>
+
+  <section>
+    <h2 class="text-[11px] font-medium uppercase tracking-wide text-secondary mb-3"><%= t("debt_plans.show.order_heading") %></h2>
+    <div class="bg-container-inset rounded-xl p-1">
+      <div class="rounded-lg shadow-border-xs bg-container">
+        <% steps_by_key = result.payoff_order.index_by { |step| step.debt.key } %>
+        <% ordered_debts = result.payoff_order.map(&:debt) + debt_plan.debts.reject { |debt| steps_by_key.key?(debt.key) } %>
+        <% ordered_debts.each_with_index do |debt, idx| %>
+          <%= render "payoff_row",
+                     debt: debt,
+                     step: steps_by_key[debt.key],
+                     position: idx + 1,
+                     currency: debt_plan.currency,
+                     first: idx.zero? %>
+        <% end %>
+      </div>
+    </div>
+  </section>
+
+  <% if result.paid_off? %>
+    <section class="bg-container rounded-xl shadow-border-xs p-5">
+      <h2 class="text-[11px] font-medium uppercase tracking-wide text-secondary"><%= t("debt_plans.show.what_if_heading") %></h2>
+      <p class="text-xs text-secondary mt-1"><%= t("debt_plans.show.what_if_subtitle") %></p>
+
+      <div class="mt-3 grid grid-cols-1 @2xl:grid-cols-3 gap-3">
+        <% debt_plan.what_if_results(strategy).each do |scenario| %>
+          <div class="bg-container-inset rounded-lg p-4">
+            <p class="text-sm font-medium text-primary tabular-nums privacy-sensitive">
+              <%= t("debt_plans.show.what_if_label", amount: scenario[:increment_money].format(precision: 0)) %>
+            </p>
+            <% if scenario[:result].paid_off? %>
+              <p class="text-xs text-secondary mt-1"><%= l(scenario[:result].payoff_date, format: :long) %></p>
+              <p class="text-xs text-success mt-1 tabular-nums privacy-sensitive">
+                <%= t("debt_plans.show.what_if_saving",
+                       months: result.months_to_payoff - scenario[:result].months_to_payoff,
+                       amount: Money.new(result.total_interest - scenario[:result].total_interest, debt_plan.currency).format(precision: 0)) %>
+              </p>
+            <% else %>
+              <p class="text-xs text-secondary mt-1"><%= t("debt_plans.status.#{scenario[:result].status}.short") %></p>
+            <% end %>
+          </div>
+        <% end %>
+      </div>
+    </section>
+  <% end %>
+</div>

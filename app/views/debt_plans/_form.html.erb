@@ -1,0 +1,82 @@
+<%# locals: (debt_plan:, linkable_accounts:, selected_account_ids: []) %>
+
+<div data-controller="debt-plan-form"
+     data-debt-plan-form-currency-value="<%= debt_plan.currency.presence || Current.family.primary_currency_code %>"
+     data-debt-plan-form-minimums-template-value="<%= t("debt_plans.form.minimums_total", amount: "{amount}") %>">
+  <%= styled_form_with model: debt_plan,
+                       url: debt_plan.persisted? ? debt_plan_path(debt_plan) : debt_plans_path,
+                       method: debt_plan.persisted? ? :patch : :post,
+                       class: "space-y-5" do |f| %>
+    <% if debt_plan.errors.any? %>
+      <%= render DS::Alert.new(variant: "error", message: debt_plan.errors.full_messages.to_sentence, live: :assertive) %>
+    <% end %>
+
+    <%= f.text_field :name,
+                     label: t("debt_plans.form.fields.name"),
+                     placeholder: t("debt_plans.form.fields.name_placeholder"),
+                     required: true %>
+
+    <div class="grid grid-cols-1 @lg:grid-cols-2 gap-3 items-start">
+      <%= f.select :strategy,
+                   DebtPlan::STRATEGIES.map { |s| [ t("debt_plans.strategies.#{s}"), s ] },
+                   { label: t("debt_plans.form.fields.strategy") } %>
+
+      <div>
+        <%= f.money_field :monthly_budget,
+                          label: t("debt_plans.form.fields.monthly_budget"),
+                          hide_currency: true,
+                          required: true,
+                          amount_data: {
+                            debt_plan_form_target: "budgetInput",
+                            action: "input->debt-plan-form#recalculate"
+                          } %>
+        <p class="mt-1.5 text-xs text-secondary tabular-nums privacy-sensitive" data-debt-plan-form-target="minimumsTotal"></p>
+        <p class="hidden mt-1.5 text-xs text-destructive" data-debt-plan-form-target="underfundedWarning">
+          <%= t("debt_plans.form.underfunded_warning") %>
+        </p>
+      </div>
+    </div>
+
+    <div>
+      <div class="mb-2">
+        <span class="block text-sm font-medium text-primary"><%= t("debt_plans.form.fields.debts") %></span>
+        <p class="text-xs text-secondary mt-0.5"><%= t("debt_plans.form.fields.debts_hint") %></p>
+        <p class="text-xs text-subdued mt-0.5"><%= t("debt_plans.form.fields.constant_minimum_note") %></p>
+      </div>
+
+      <%# Guarantees debt_plan[account_ids] is always submitted, so unchecking
+          every debt reaches the server as an explicit empty selection (and is
+          rejected) instead of being dropped by Rack and silently ignored. %>
+      <%= hidden_field_tag "debt_plan[account_ids][]", "" %>
+
+      <div class="bg-container-inset rounded-lg p-1">
+        <% links_by_account = debt_plan.debt_plan_accounts.index_by(&:account_id) %>
+        <% grouped = linkable_accounts.group_by(&:accountable_type) %>
+        <% grouped.each_with_index do |(accountable_type, accounts), group_idx| %>
+          <div class="px-3 py-2 text-[11px] font-medium uppercase tracking-wide text-secondary">
+            <%= t("debt_plans.form.accountable_types.#{accountable_type.underscore}", default: accountable_type.titleize) %>
+          </div>
+          <div class="bg-container rounded-md <%= "mb-1" if group_idx < grouped.size - 1 %>">
+            <% accounts.each_with_index do |account, idx| %>
+              <%= render "debt_row",
+                         account: account,
+                         link: links_by_account[account.id],
+                         checked: selected_account_ids.include?(account.id.to_s),
+                         first: idx.zero? %>
+            <% end %>
+          </div>
+        <% end %>
+      </div>
+    </div>
+
+    <%= f.text_area :notes,
+                    label: t("debt_plans.form.fields.notes"),
+                    rows: 2,
+                    placeholder: t("debt_plans.form.fields.notes_placeholder") %>
+
+    <div class="flex justify-end pt-2">
+      <%= f.submit debt_plan.persisted? ? t("debt_plans.form.save") : t("debt_plans.form.create"),
+                   data: { debt_plan_form_target: "submitButton" } %>
+    </div>
+  <% end %>
+</div>

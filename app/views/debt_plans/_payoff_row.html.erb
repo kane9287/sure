@@ -1,0 +1,33 @@
+<%# locals: (debt:, step:, position:, currency:, first: false) %>
+
+<div class="flex items-center gap-3 px-4 py-3 <%= "border-t border-subdued" unless first %>">
+  <span class="shrink-0 w-6 h-6 rounded-full bg-surface-inset text-xs font-medium text-secondary tabular-nums flex items-center justify-center">
+    <%= position %>
+  </span>
+
+  <div class="min-w-0 flex-1">
+    <p class="text-sm font-medium text-primary truncate"><%= debt.name %></p>
+    <p class="text-xs text-secondary tabular-nums privacy-sensitive">
+      <%= Money.new(debt.balance, currency).format %>
+      <span class="text-subdued">·</span>
+      <% if debt.apr? %>
+        <%= t("debt_plans.show.row.apr", rate: number_with_precision(debt.apr, precision: 2, strip_insignificant_zeros: true)) %>
+      <% else %>
+        <%= t("debt_plans.show.row.no_apr") %>
+      <% end %>
+      <span class="text-subdued">·</span>
+      <%= t("debt_plans.show.row.minimum", amount: Money.new(debt.minimum_amount, currency).format(precision: 0)) %>
+    </p>
+  </div>
+
+  <div class="shrink-0 text-right">
+    <% if step %>
+      <p class="text-sm text-primary tabular-nums"><%= l(step.date, format: :long) %></p>
+      <p class="text-xs text-secondary tabular-nums privacy-sensitive">
+        <%= t("debt_plans.show.row.interest", amount: Money.new(step.interest_paid, currency).format(precision: 0)) %>
+      </p>
+    <% else %>
+      <%= render DS::Pill.new(label: t("debt_plans.show.row.not_paid_off"), tone: :warning, marker: false) %>
+    <% end %>
+  </div>
+</div>
