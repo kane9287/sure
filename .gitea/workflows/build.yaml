@@ -9,7 +9,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  IMAGE: 192.168.0.166:3000/christopher/sure-pnw-financial
+  IMAGE: my-gitea.nerdsandgeeks.net/christopher/sure-pnw-financial
 
 jobs:
   build:
@@ -25,7 +25,7 @@ jobs:
         env:
           REGISTRY_USER: ${{ secrets.REGISTRY_USER }}
           REGISTRY_PASSWORD: ${{ secrets.REGISTRY_PASSWORD }}
-        run: echo "$REGISTRY_PASSWORD" | docker login 192.168.0.166:3000 -u "$REGISTRY_USER" --password-stdin
+        run: echo "$REGISTRY_PASSWORD" | docker login my-gitea.nerdsandgeeks.net -u "$REGISTRY_USER" --password-stdin
 
       - name: Build and push
         run: |
@@ -34,4 +34,4 @@ jobs:
 
       - name: Log out
         if: always()
-        run: docker logout 192.168.0.166:3000
+        run: docker logout my-gitea.nerdsandgeeks.net
