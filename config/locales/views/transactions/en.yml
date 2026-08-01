@@ -167,8 +167,8 @@ en:
       expenses: Expenses
       inflow: Inflow
       outflow: Outflow
-      upcoming_income: Upcoming
-      upcoming_expenses: Upcoming
+      upcoming_income: Upcoming income
+      upcoming_expenses: Upcoming expenses
     header:
       edit_categories: Edit categories
       edit_imports: Edit imports
