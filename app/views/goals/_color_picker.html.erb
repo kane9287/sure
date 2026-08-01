@@ -61,6 +61,9 @@
 
         <div class="flex flex-col gap-2">
           <h4 class="text-secondary text-xs uppercase tracking-wide"><%= t("goals.color_picker.icon_heading") %></h4>
+          <input type="text" placeholder="<%= t("goals.color_picker.icon_search_placeholder") %>" autocomplete="off"
+                 data-color-icon-picker-target="iconSearch" data-action="input->color-icon-picker#filterIcons"
+                 class="bg-container placeholder:text-sm placeholder:text-secondary font-normal h-8 px-2.5 w-full border border-secondary rounded-lg focus:outline-hidden focus:ring-0" />
           <div class="flex flex-wrap gap-0.5 max-h-40 overflow-y-auto scrollbar">
             <% icons.each do |icon_name| %>
               <label class="relative">

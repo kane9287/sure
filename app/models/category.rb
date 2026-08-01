@@ -149,21 +149,63 @@ class Category < ApplicationRecord
 
     def icon_codes
       %w[
-        ambulance apple award baby badge-dollar-sign banknote barcode bar-chart-3 bath
-        battery bed-single beer bike bluetooth bone book book-open briefcase building bus
-        cake calculator calendar-heart calendar-range camera car cat chart-line
-        circle-dollar-sign circle-parking coffee coins compass cookie cooking-pot
-        credit-card dices dog drama drill droplet drum dumbbell film flame flower flower-2
-        fuel gamepad-2 gem gift glasses globe graduation-cap hammer hand-heart
-        hand-helping heart-handshake handshake headphones heart heart-pulse home hotel
-        house ice-cream-cone key landmark laptop leaf lightbulb luggage mail map-pin
-        martini mic monitor moon music package palette party-popper paw-print pen pencil
-        percent phone pie-chart piggy-bank pill pizza plane plug popcorn power printer
-        puzzle receipt receipt-text ribbon scale scissors settings shield shield-plus
-        shirt shopping-bag shopping-basket shopping-cart smartphone sparkles sprout
-        stethoscope store sun tablet-smartphone tag target tent thermometer ticket train
-        trees tree-palm trending-up trophy truck tv umbrella undo-2 unplug users utensils
-        video wallet wallet-cards waves wifi wine wrench zap
+        accessibility activity air-vent alarm-clock alarm-smoke ambulance amphora anchor
+        antenna anvil apple archive archive-restore archive-x armchair audio-lines
+        audio-waveform award axe baby backpack badge-cent badge-dollar-sign badge-euro
+        badge-indian-rupee badge-japanese-yen badge-percent badge-pound-sterling
+        badge-russian-ruble badge-swiss-franc badge-turkish-lira baggage-claim banana bandage
+        banknote banknote-arrow-down banknote-arrow-up banknote-x barcode barrel bath battery
+        bean bed bed-double bed-single beef beer bell-electric bike binoculars bird birdhouse
+        bitcoin blinds bluetooth bolt bomb bone book book-open bottle-wine bow-arrow brain
+        brick-wall briefcase briefcase-business briefcase-medical brush brush-cleaning bug
+        building building-2 bus bus-front cable-car cake cake-slice calculator calendar
+        calendar-check calendar-clock calendar-days calendar-heart calendar-range camera candy
+        candy-cane cannabis car car-front car-taxi-front caravan card-sim carrot cassette-tape
+        castle cat cctv chart-area chart-bar chart-candlestick chart-column chart-line
+        chart-pie chart-scatter chef-hat cherry church cigarette circle-dollar-sign
+        circle-gauge circle-parking circle-percent circle-pound-sterling citrus clock
+        clock-alert clock-arrow-down clock-arrow-up clock-check clock-fading clock-plus coffee
+        coins compass concierge-bell contact contact-round container cookie cooking-pot
+        credit-card croissant cuboid cup-soda currency dam dessert diamond-percent dices dna
+        dog dollar-sign donut door-closed door-closed-locked door-open drama drill drone
+        droplet drum drumstick dumbbell ear egg egg-fried ethernet-port euro ev-charger eye
+        factory fan feather fence file-clock file-key file-lock film fingerprint-pattern
+        fire-extinguisher fish fish-symbol fishing-hook flame flame-kindling flower flower-2
+        forklift fuel gamepad-2 gauge gavel gem georgian-lari gift glass-water glasses globe
+        graduation-cap grape ham hamburger hammer hand-coins hand-fist hand-heart hand-helping
+        hand-platter handbag handshake hard-hat headphones heart heart-handshake heart-minus
+        heart-plus heart-pulse heater helicopter hop hospital hotel hourglass house house-heart
+        house-plug house-plus house-wifi ice-cream-bowl ice-cream-cone id-card inbox
+        indian-rupee inspection-panel japanese-yen kayak key key-round key-square lamp
+        lamp-ceiling lamp-desk lamp-floor lamp-wall-down lamp-wall-up land-plot landmark laptop
+        leaf leafy-green lectern life-buoy lightbulb lock lock-keyhole lock-keyhole-open
+        lock-open lollipop luggage mail mail-open mailbox mails map-pin map-pinned martini
+        medal mic microscope microwave milk monitor moon motorbike mountain mountain-snow music
+        newspaper nfc notebook notebook-tabs nut origami package paint-bucket paint-roller
+        paintbrush paintbrush-vertical palette panda paperclip parking-meter party-popper
+        paw-print pen pen-line pencil pencil-line percent philippine-peso phone phone-call
+        pickaxe piggy-bank pill pill-bottle pizza plane plane-landing plane-takeoff plug
+        pocket-knife popcorn popsicle pound-sterling power presentation printer projector
+        puzzle pyramid rabbit radar rat receipt receipt-cent receipt-euro receipt-indian-rupee
+        receipt-japanese-yen receipt-pound-sterling receipt-russian-ruble receipt-swiss-franc
+        receipt-text receipt-turkish-lira recycle refrigerator ribbon rocking-chair rose router
+        ruler ruler-dimension-line russian-ruble sailboat salad sandwich saudi-riyal scale
+        scan-barcode scan-qr-code school scissors scooter screen-share settings shell shield
+        shield-alert shield-check shield-plus ship ship-wheel shirt shopping-bag
+        shopping-basket shopping-cart shovel shower-head shredder shrimp shrub siren smartphone
+        smartphone-nfc snail soap-dispenser-droplet sofa solar-panel soup sparkles speech spool
+        spotlight spray-can sprout square-activity square-percent squirrel stamp stethoscope
+        stone store sun sunrise swiss-franc switch-camera sword swords syringe
+        tablet-smartphone tablets tag target telescope tent tent-tree theater thermometer
+        ticket ticket-check ticket-minus ticket-percent ticket-plus ticket-slash ticket-x
+        tickets tickets-plane timer timer-reset toilet tool-case toolbox tower-control tractor
+        traffic-cone train train-front train-front-tunnel train-track tram-front trash trash-2
+        tree-deciduous tree-palm tree-pine trees trending-down trending-up trending-up-down
+        trophy truck truck-electric turkish-lira turntable turtle tv umbrella undo-2 university
+        unplug usb user-lock users utensils utensils-crossed utility-pole van vault vegan video
+        videotape volleyball volume volume-1 volume-2 volume-x wallet wallet-cards
+        wallet-minimal warehouse washing-machine watch waves waves-arrow-down waves-arrow-up
+        waves-ladder waypoints webcam wheat wifi wind wine worm wrench zap
       ]
     end
 

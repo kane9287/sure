@@ -47,6 +47,9 @@
 
             <div class="flex flex-wrap gap-2 justify-center flex-col w-auto md:w-87">
               <h4 class="text-secondary text-sm"><%= t(".icon") %></h4>
+              <input type="text" placeholder="<%= t(".icon_search_placeholder") %>" autocomplete="off"
+                     data-color-icon-picker-target="iconSearch" data-action="input->color-icon-picker#filterIcons"
+                     class="bg-container placeholder:text-sm placeholder:text-secondary font-normal h-8 px-2.5 w-full border border-secondary rounded-lg focus:outline-hidden focus:ring-0" />
               <div class="flex flex-wrap gap-0.5 max-h-52 overflow-auto">
                 <% Category.icon_codes.each do |icon| %>
                   <label class="relative">

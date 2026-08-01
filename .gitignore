@@ -141,3 +141,6 @@ logs/security/
 # Ignore Playwright artifacts
 playwright-report/
 .playwright-mcp
+
+# testing screenshots
+testing_screenshots

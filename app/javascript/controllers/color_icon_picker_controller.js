@@ -16,6 +16,7 @@ export default class extends Controller {
     "selection",
     "colorPickerRadioBtn",
     "popup",
+    "iconSearch",
   ];
 
   static values = {
@@ -128,6 +129,15 @@ export default class extends Controller {
     iconSVG.style.padding = "0px";
     iconSVG.classList.add("w-8", "h-8");
     this.avatarTarget.appendChild(iconSVG);
+  }
+
+  filterIcons(e) {
+    const query = e.target.value.trim().toLowerCase();
+
+    this.iconTargets.forEach((radio) => {
+      const label = radio.closest("label");
+      label.classList.toggle("hidden", !radio.value.includes(query));
+    });
   }
 
   updateSelectedIconColor(color) {
