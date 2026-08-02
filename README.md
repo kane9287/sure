@@ -1,8 +1,3 @@
-[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/we-promise/sure)
-[![View performance data on Skylight](https://badges.skylight.io/typical/s6PEZSKwcklL.svg)](https://oss.skylight.io/app/applications/s6PEZSKwcklL)
-[![Dosu](https://raw.githubusercontent.com/dosu-ai/assets/main/dosu-badge.svg)](https://app.dosu.dev/a72bdcfd-15f5-4edc-bd85-ea0daa6c3adc/ask)
-[![Pipelock Security Scan](https://github.com/we-promise/sure/actions/workflows/pipelock.yml/badge.svg)](https://github.com/we-promise/sure/actions/workflows/pipelock.yml)
-
 <img width="1270" height="1140" alt="sure_shot" src="https://github.com/user-attachments/assets/9c6e03cc-3490-40ab-9a68-52e042c51293" />
 
 <p align="center">
@@ -25,6 +20,24 @@ involved: [Discord](https://discord.gg/36ZGBsxYEK) • [Website](https://sure.am
 > [!IMPORTANT]
 > This repository is a community fork of the now-abandoned Maybe Finance project. <br />
 > Learn more in their [final release](https://github.com/maybe-finance/maybe/releases/tag/v0.6.0) doc.
+
+## Credit & Attribution
+
+This repository (`sure_pnw_financial`) is a personal/family fork of **[we-promise/sure](https://github.com/we-promise/sure)** — nearly all of the code, design, and product direction here is their work, not mine. Sure itself is a community-maintained continuation of the archived **[Maybe Finance](https://github.com/maybe-finance/maybe)** project.
+
+- Full credit to the **we-promise/sure maintainers and contributors** for the app this fork is built on. If you're looking for the actively-developed, community-supported version, go there: [github.com/we-promise/sure](https://github.com/we-promise/sure).
+- Full credit to the original **Maybe Finance** team, whose work Sure itself is built on.
+- This fork is maintained independently for my own family's use and experimentation (see Roadmap below) — it is **not affiliated with or endorsed by** either we-promise/sure or Maybe Finance Inc.
+- This fork is released under the same [AGPLv3 license](LICENSE) as its upstream projects and will remain open source. See [License and Trademarks](#license-and-trademarks) below.
+
+## Roadmap / Feature Ideas (this fork)
+
+> [!NOTE]
+> This section is specific to this personal fork (not the upstream we-promise/sure project). It's an ideas backlog, not a commitment or schedule — things to consider once this is ready to become a more committed fork.
+
+- [ ] **Credit card promo period tracker** — a calendar/dashboard view of active 0% APR or promo-financing windows per card, with reminders before a promo period ends.
+
+Have an idea? Add it to this list.
 
 ## Backstory
 
@@ -149,18 +162,8 @@ For further instructions, see guides below.
 ## License and Trademarks
 
 Maybe and Sure are both distributed under
-an [AGPLv3 license](https://github.com/we-promise/sure/blob/main/LICENSE).
+an [AGPLv3 license](https://github.com/we-promise/sure/blob/main/LICENSE), and this fork is distributed under that same [AGPLv3 license](LICENSE) — it is, and will remain, open source.
+
 - "Maybe" is a trademark of Maybe Finance, Inc.
-- "Sure" is not, and refers to this community fork.
-
-![Alt](https://repobeats.axiom.co/api/embed/3a9753cff07501fba8a6749d0ebd567ff63848c8.svg "Repobeats analytics image")
-
-<p align="center">
-  <a href="https://gittensor.io/miners/repository?name=we-promise%2Fsure">
-    <picture>
-      <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/we-promise/sure/gittensor-impact-assets/gittensor-impact-dark.svg">
-      <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/we-promise/sure/gittensor-impact-assets/gittensor-impact-light.svg">
-      <img src="https://raw.githubusercontent.com/we-promise/sure/gittensor-impact-assets/gittensor-impact-light.svg" alt="Gittensor contributor impact for Sure repo" width="600">
-    </picture>
-  </a>
-</p>
+- "Sure" is not, and refers to the upstream [we-promise/sure](https://github.com/we-promise/sure) community fork.
+- This repository is a further, independent fork of we-promise/sure, maintained for personal/family use. It is not affiliated with, endorsed by, or officially connected to we-promise/sure or Maybe Finance, Inc. See [Credit & Attribution](#credit--attribution) above.

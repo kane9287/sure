@@ -201,6 +201,13 @@ en:
         sharing_default_label: Default sharing for new accounts
         sharing_shared: Share with all members
         sharing_private: Keep private by default
+        budgeting_title: Budgeting
+        budgeting_subtitle: Choose how your household budgets
+        budget_mode_label: Budget mode
+        budget_mode_hint: Envelope mode carries unspent money forward each month instead of resetting; cap mode resets to your monthly targets.
+        budget_mode_cap: Cap (monthly targets)
+        budget_mode_envelope: Envelope (rolling balances)
+        budget_mode_unassigned_balance: "Unassigned: %{amount}"
         preview:
           title: Enable preview features
           description: Opt in to in-progress features tagged preview or canary.

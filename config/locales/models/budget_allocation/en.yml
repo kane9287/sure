@@ -1,0 +1,18 @@
+---
+en:
+  activerecord:
+    attributes:
+      budget_allocation:
+        amount: Amount
+        category: Category
+        date: Date
+        kind: Kind
+    errors:
+      models:
+        budget_allocation:
+          attributes:
+            category:
+              must_belong_to_family: Category must belong to the same household as the allocation.
+            amount:
+              must_be_positive_for_fund: must be positive when funding an envelope.
+              must_be_negative_for_sweep: must be negative when sweeping money back to Unassigned.

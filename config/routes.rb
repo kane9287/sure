@@ -385,6 +385,9 @@ Rails.application.routes.draw do
     get :picker, on: :collection
 
     resources :budget_categories, only: %i[index show update]
+    # Envelope mode only: fund an envelope from (or sweep back to) the
+    # family's Unassigned pool. See BudgetAllocation, Family#budget_mode.
+    resources :budget_allocations, only: %i[create]
   end
 
   resources :goals do

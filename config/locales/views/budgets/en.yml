@@ -63,6 +63,11 @@ en:
       success: "Budget copied from %{source_name}"
       no_source: "No previous budget found to copy from"
       already_initialized: "This budget has already been set up"
+    unassigned_pool:
+      title: "Unassigned"
+      subtitle: "Cash in your budget accounts not yet assigned to an envelope"
+      allocate: "Allocate"
+      percent_assigned: "%{percent} assigned"
   budget_categories:
     allocation_progress:
       budget_exceeded_html: 'Budget exceeded by <span class="text-red-500 privacy-sensitive">%{amount}</span>'
@@ -83,6 +88,21 @@ en:
     index:
       title: "Edit your category budgets"
       description: "Adjust category budgets to set spending limits. Unallocated funds will be automatically assigned as uncategorized."
+      envelope_title: "Assign your Unassigned money"
+      envelope_description: "Fund envelopes from your Unassigned pool. Unspent balances carry forward to next month."
+    envelope_category_details:
+      assigned: "Assigned"
+      available: "Available"
+      overspent: "Overspent"
+      move_money: "Move money from another envelope"
+    envelope_allocation:
+      done: "Done"
+    envelope_category_row:
+      assigned: "Assigned"
+      fund: "Fund"
+      move_money: "Move money from another envelope"
+      move_from_placeholder: "Move from…"
+      move: "Move"
     show:
       category: "Category"
       overview: "Overview"

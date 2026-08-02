@@ -58,6 +58,13 @@
           <span class="text-sm"><%= t(".exclude_from_reports") %></span>
           <%= form.toggle :exclude_from_reports %>
         </div>
+
+        <% if account.depository? %>
+          <div class="flex items-center justify-between gap-2">
+            <span class="text-sm"><%= t(".in_budget") %></span>
+            <%= form.toggle :in_budget %>
+          </div>
+        <% end %>
       </div>
     </details>
   </div>

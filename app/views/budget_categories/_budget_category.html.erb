@@ -29,7 +29,7 @@
         <div class="flex items-center gap-3 flex-shrink-0 ml-auto">
           <% if budget_category.over_budget? %>
             <%= render DS::Pill.new(label: t("reports.budget_performance.status.over"), tone: :error, marker: false, icon: "alert-circle") %>
-          <% elsif budget_category.near_limit? %>
+          <% elsif !budget_category.budget.family.envelope_mode? && budget_category.near_limit? %>
             <%= render DS::Pill.new(label: t("reports.budget_performance.status.warning"), tone: :warning, marker: false, icon: "alert-triangle") %>
           <% else %>
             <%= render DS::Pill.new(label: t("reports.budget_performance.status.good"), tone: :success, marker: false, icon: "check-circle") %>
@@ -37,6 +37,9 @@
         </div>
       </div>
 
+      <% if budget_category.budget.family.envelope_mode? %>
+        <%= render "budget_categories/envelope_category_details", budget_category: budget_category %>
+      <% else %>
       <%# Progress Bar %>
       <div class="mb-3">
         <div class="h-1.5 bg-container-inset rounded-full overflow-hidden">
@@ -87,6 +90,7 @@
           <% end %>
         </div>
       </div>
+      <% end %>
 
     <% else %>
       <%# Uninitialized budget - show simple view %>

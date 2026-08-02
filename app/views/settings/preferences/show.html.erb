@@ -198,6 +198,27 @@
       <% end %>
     </div>
   <% end %>
+  <%= settings_section title: t(".budgeting_title"), subtitle: t(".budgeting_subtitle") do %>
+    <div class="space-y-4">
+      <%= styled_form_with model: @user, class: "space-y-4", data: { controller: "auto-submit-form" } do |form| %>
+        <%= form.hidden_field :redirect_to, value: "preferences" %>
+        <%= form.fields_for :family do |family_form| %>
+          <%= family_form.select :budget_mode,
+              [
+                [t(".budget_mode_cap"), "cap"],
+                [t(".budget_mode_envelope"), "envelope"]
+              ],
+              { label: t(".budget_mode_label"), hint: t(".budget_mode_hint") },
+              { data: { auto_submit_form_target: "auto" } } %>
+        <% end %>
+      <% end %>
+      <% if @user.family.envelope_mode? %>
+        <p class="text-sm text-secondary">
+          <%= t(".budget_mode_unassigned_balance", amount: @user.family.unassigned_pool_balance.format) %>
+        </p>
+      <% end %>
+    </div>
+  <% end %>
 <% end %>
 
 <%# Preview features toggle — visible to all users, not just admins. Lives at

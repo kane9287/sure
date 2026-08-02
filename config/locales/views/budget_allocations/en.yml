@@ -1,0 +1,6 @@
+---
+en:
+  budget_allocations:
+    create:
+      success: "Envelope updated"
+      envelope_mode_required: "Envelope budgeting isn't enabled for your household."

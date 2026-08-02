@@ -6,7 +6,7 @@ class BudgetCategory < ApplicationRecord
 
   validates :budget_id, uniqueness: { scope: :category_id }
 
-  monetize :budgeted_spending, :available_to_spend, :avg_monthly_expense, :median_monthly_expense, :actual_spending
+  monetize :budgeted_spending, :available_to_spend, :avg_monthly_expense, :median_monthly_expense, :actual_spending, :envelope_assigned
 
   class Group
     attr_reader :budget_category, :budget_subcategories
@@ -99,7 +99,14 @@ class BudgetCategory < ApplicationRecord
     @parent_budget_category ||= budget.budget_categories.find { |bc| bc.category.id == category.parent_id }
   end
 
+  # Envelope mode replaces cap mode's parent/subcategory ring-fencing with a
+  # simpler model: every category (parent or sub) is its own rolling
+  # envelope, and the family's Unassigned pool plays the "shared reserve"
+  # role that the parent's shared_pool math plays in cap mode. See
+  # Family#envelope_balances_by_category for the underlying computation.
   def available_to_spend
+    return envelope_available_to_spend if budget.family.envelope_mode?
+
     if inherits_parent_budget?
       # Subcategories using parent budget share the parent's available_to_spend
       parent = parent_budget_category
@@ -133,6 +140,17 @@ class BudgetCategory < ApplicationRecord
       # Available in shared pool
       shared_pool - shared_pool_spending
     end
+  end
+
+  # Cumulative net funding (BudgetAllocation fund - sweep) into this category
+  # since the family activated envelope mode — the "Assigned" figure on the
+  # envelope UI, distinct from the rolling available_to_spend balance.
+  def envelope_assigned
+    budget.family.envelope_assigned_by_category[category_id] || 0
+  end
+
+  def envelope_available_to_spend
+    budget.family.envelope_balances_by_category[category_id] || 0
   end
 
   def percent_of_budget_spent

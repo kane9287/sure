@@ -1,0 +1,15 @@
+groceries_fund:
+  family: dylan_family
+  category: food_and_drink
+  amount: 200
+  currency: USD
+  date: <%= Date.current %>
+  kind: fund
+
+groceries_sweep:
+  family: dylan_family
+  category: food_and_drink
+  amount: -50
+  currency: USD
+  date: <%= Date.current %>
+  kind: sweep
