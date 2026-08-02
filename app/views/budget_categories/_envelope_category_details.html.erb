@@ -1,0 +1,32 @@
+<%# locals: (budget_category:) %>
+
+<div class="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm">
+  <div class="whitespace-nowrap w-full sm:w-auto">
+    <span class="text-sm text-secondary"><%= t(".assigned") %>:</span>
+    <span class="font-medium text-primary privacy-sensitive">
+      <%= format_money(budget_category.envelope_assigned_money) %>
+    </span>
+  </div>
+
+  <div class="whitespace-nowrap w-full sm:w-auto lg:ml-auto flex items-center gap-2">
+    <% if budget_category.available_to_spend >= 0 %>
+      <span class="text-sm text-secondary"><%= t(".available") %>:</span>
+      <span class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium bg-success/10 text-success privacy-sensitive">
+        <%= format_money(budget_category.available_to_spend_money) %>
+      </span>
+    <% else %>
+      <span class="text-sm text-secondary"><%= t(".overspent") %>:</span>
+      <span class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium bg-destructive/10 text-destructive privacy-sensitive">
+        <%= format_money(budget_category.available_to_spend_money.abs) %>
+      </span>
+    <% end %>
+  </div>
+</div>
+
+<% if budget_category.available_to_spend.negative? %>
+  <div class="mt-2" data-turbo="false">
+    <%= link_to t(".move_money"),
+        budget_budget_categories_path(budget_category.budget, anchor: dom_id(budget_category)),
+        class: "text-xs font-medium text-primary underline underline-offset-2" %>
+  </div>
+<% end %>

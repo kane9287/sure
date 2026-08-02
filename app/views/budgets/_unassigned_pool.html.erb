@@ -1,0 +1,20 @@
+<%# locals: (budget:) %>
+
+<% family = budget.family %>
+<% pool = family.unassigned_pool_balance %>
+
+<div id="<%= dom_id(family, :unassigned_pool) %>" class="bg-container rounded-xl shadow-border-xs p-4 flex items-center justify-between gap-4 mb-4">
+  <div>
+    <p class="text-sm text-secondary"><%= t(".title") %></p>
+    <p class="text-2xl font-medium privacy-sensitive <%= pool.negative? ? "text-destructive" : "text-primary" %>">
+      <%= format_money(pool) %>
+    </p>
+  </div>
+
+  <%= render DS::Link.new(
+    text: t(".allocate"),
+    variant: "secondary",
+    icon: "hand-coins",
+    href: budget_budget_categories_path(budget)
+  ) %>
+</div>

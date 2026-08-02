@@ -50,6 +50,7 @@ class Family < ApplicationRecord
 
   has_many :budgets, dependent: :destroy
   has_many :budget_categories, through: :budgets
+  has_many :budget_allocations, dependent: :destroy
 
   has_many :goals, dependent: :destroy
   has_many :debt_plans, dependent: :destroy
@@ -139,14 +140,18 @@ class Family < ApplicationRecord
     users.with_preview_features.exists?
   end
 
+  BUDGET_MODES = %w[cap envelope].freeze
+
   validates :locale, inclusion: { in: I18n.available_locales.map(&:to_s) }
   validates :date_format, inclusion: { in: DATE_FORMATS.map(&:last) }
   validates :month_start_day, inclusion: { in: 1..28 }
   validates :moniker, inclusion: { in: MONIKERS }
   validates :assistant_type, inclusion: { in: ASSISTANT_TYPES }
   validates :default_account_sharing, inclusion: { in: SHARING_DEFAULTS }
+  validates :budget_mode, inclusion: { in: BUDGET_MODES }
 
   before_validation :normalize_enabled_currencies!
+  before_save :snapshot_envelope_activation!
 
   def primary_currency_code
     normalize_currency_code(currency) || "USD"
@@ -227,6 +232,117 @@ class Family < ApplicationRecord
 
     AccountShare.insert_all(records, unique_by: %i[account_id user_id]) if records.any?
   end
+
+  def envelope_mode?
+    budget_mode == "envelope"
+  end
+
+  def cap_mode?
+    budget_mode == "cap"
+  end
+
+  # Switches the family into envelope mode. Idempotent on the activation
+  # date: re-activating after a trip back to cap mode resumes the existing
+  # rolling balances instead of re-snapshotting, since nothing about
+  # allocations/spend was destroyed while cap mode was active (see
+  # BudgetAllocation, Family#envelope_balances_by_category). The activation
+  # date itself is stamped by the snapshot_envelope_activation! callback so
+  # any save path that flips budget_mode (including the generic settings
+  # form's mass-assignment) gets the same safe behavior.
+  def activate_envelope_mode!
+    update!(budget_mode: "envelope")
+  end
+
+  def deactivate_envelope_mode!
+    update!(budget_mode: "cap")
+  end
+
+  # The family's cash not yet assigned to an envelope or earmarked to a goal:
+  # cash in in-budget accounts, minus every envelope's rolling balance
+  # (negative balances reduce the pool the same way positive ones reserve
+  # from it — see envelope_balances_by_category), minus goal earmarks.
+  # Only meaningful in envelope mode; nil otherwise so callers don't
+  # mistake a cap-mode family's $0 for "fully assigned."
+  def unassigned_pool_balance
+    return nil unless envelope_mode?
+
+    # Restricted to the primary currency, same caveat as savings_inflow_velocity
+    # above: mixed-currency families would otherwise sum raw EUR + USD figures.
+    cash = in_budget_accounts.where(currency: primary_currency_code).sum(:balance)
+    reserved_in_envelopes = envelope_balances_by_category.values.sum
+    earmarked_for_goals = GoalAccount.joins(:goal)
+      .where(account_id: in_budget_accounts.select(:id))
+      .where(goals: { family_id: id })
+      .where.not(goals: { state: "archived" })
+      .sum(:allocated_amount)
+
+    Money.new(cash - reserved_in_envelopes - earmarked_for_goals, primary_currency_code)
+  end
+
+  def in_budget_accounts
+    accounts.where(accountable_type: "Depository", in_budget: true, status: "active")
+  end
+
+  # Each envelope category's rolling available-to-spend balance since
+  # envelope_activated_on: net funded (BudgetAllocation fund - sweep) minus
+  # net actual spend, over the whole span — not clamped at zero. A negative
+  # balance is exactly what makes an overspend reduce unassigned_pool_balance
+  # (see above) without needing a separate period-end sweep step: the
+  # identity cash == unassigned + sum(envelope balances) + goal earmarks
+  # holds continuously.
+  #
+  # Memoized per instance (cleared by reset_envelope_caches!) so rendering
+  # every category on the budget page fires two queries total, not two per
+  # category.
+  def envelope_balances_by_category
+    envelope_category_math[:balances]
+  end
+
+  # Each category's cumulative net funding (fund - sweep) since activation —
+  # the "Assigned" figure shown alongside the rolling balance. Same memoized
+  # pass as envelope_balances_by_category.
+  def envelope_assigned_by_category
+    envelope_category_math[:assigned]
+  end
+
+  def reset_envelope_caches!
+    remove_instance_variable(:@envelope_category_math) if instance_variable_defined?(:@envelope_category_math)
+  end
+
+  private
+    def envelope_category_math
+      @envelope_category_math ||= begin
+        activation = envelope_activated_on
+
+        if activation.nil?
+          { balances: Hash.new(0), assigned: Hash.new(0) }
+        else
+          period = Period.custom(start_date: activation, end_date: Date.current)
+          # Defaults to Current.user, same as every other Family/Budget income
+          # statement read in this app — scoped to what the viewing member can
+          # see (see CLAUDE.md: use Current.user, not an explicit override).
+          statement = income_statement
+          allocated = budget_allocations.since(activation).group(:category_id).sum(:amount)
+          expense_by_cat = statement.expense_totals(period: period).category_totals.index_by { |ct| ct.category.id }
+          income_by_cat = statement.income_totals(period: period).category_totals.index_by { |ct| ct.category.id }
+
+          category_ids = (allocated.keys + expense_by_cat.keys + income_by_cat.keys).compact.uniq
+          balances = Hash.new(0)
+          assigned = Hash.new(0)
+
+          category_ids.each do |category_id|
+            funded = (allocated[category_id] || 0).to_d
+            spent = (expense_by_cat[category_id]&.total || 0).to_d
+            refunded = (income_by_cat[category_id]&.total || 0).to_d
+            assigned[category_id] = funded
+            balances[category_id] = funded - [ spent - refunded, 0 ].max
+          end
+
+          { balances: balances, assigned: assigned }
+        end
+      end
+    end
+  public
 
   def uses_custom_month_start?
     month_start_day != 1
@@ -474,6 +590,16 @@ class Family < ApplicationRecord
         .joins("INNER JOIN depositories ON depositories.id = accounts.accountable_id AND accounts.accountable_type = 'Depository'")
         .where(depositories: { subtype: Depository::TAX_ADVANTAGED_SUBTYPES })
         .pluck(:id)
+    end
+
+    # Stamps envelope_activated_on the first time budget_mode becomes
+    # "envelope", regardless of which save path triggered it (explicit
+    # activate_envelope_mode!, or the settings form's generic
+    # family_attributes mass-assignment). Leaves the date alone on every
+    # later save so re-entering envelope mode after a trip back to cap mode
+    # resumes existing rolling balances instead of re-snapshotting.
+    def snapshot_envelope_activation!
+      self.envelope_activated_on = Date.current if budget_mode == "envelope" && envelope_activated_on.blank?
     end
 
     def normalize_enabled_currencies!

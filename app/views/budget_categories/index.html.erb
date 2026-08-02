@@ -8,10 +8,17 @@
 <div>
   <div class="space-y-6">
     <div class="text-center space-y-2">
-      <h1 class="text-3xl text-primary font-medium"><%= t(".title") %></h1>
-      <p class="text-secondary text-sm max-w-md mx-auto">
-        <%= t(".description") %>
-      </p>
+      <% if @budget.family.envelope_mode? %>
+        <h1 class="text-3xl text-primary font-medium"><%= t(".envelope_title") %></h1>
+        <p class="text-secondary text-sm max-w-md mx-auto">
+          <%= t(".envelope_description") %>
+        </p>
+      <% else %>
+        <h1 class="text-3xl text-primary font-medium"><%= t(".title") %></h1>
+        <p class="text-secondary text-sm max-w-md mx-auto">
+          <%= t(".description") %>
+        </p>
+      <% end %>
     </div>
 
     <div class="mx-auto max-w-lg">
@@ -19,6 +26,8 @@
         <div class="bg-container shadow-border-xs rounded-lg p-4">
           <%= render "budget_categories/no_categories" %>
         </div>
+      <% elsif @budget.family.envelope_mode? %>
+        <%= render "budget_categories/envelope_allocation", budget: @budget, budget_categories: @budget_categories %>
       <% else %>
         <div class="max-w-md mx-auto">
           <%= render "budget_categories/allocation_progress", budget: @budget %>
