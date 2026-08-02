@@ -255,7 +255,7 @@ en:
       errors:
         name_required: Give your goal a name.
         amount_required: Set a target above zero.
-        accounts_required: Pick at least one funding account.
+        accounts_required: Pick at least one funding account, or an envelope to save into.
       fields:
         name: Name
         name_placeholder: Emergency fund, House down payment…
@@ -264,8 +264,13 @@ en:
         color: Color
         notes: Notes (optional)
         notes_placeholder: A reminder for future you…
+        category: Envelope
+        category_hint: Fund this envelope in your budget to save toward the goal.
+        no_category: Not budgeted as an envelope
+        monthly_contribution: Save per month
+        monthly_contribution_hint: Leave blank to work it out from the target and date.
         funding_accounts: Funding accounts
-        funding_accounts_hint: This goal's balance is the balance (or earmarked portion) of these accounts.
+        funding_accounts_hint: This goal's balance is the balance (or earmarked portion) of these accounts. Optional if you picked an envelope.
         whole_balance: Whole balance
         earmark_for: Earmark amount for %{account}
         earmark_hint: Leave an amount blank to dedicate that account's whole balance.

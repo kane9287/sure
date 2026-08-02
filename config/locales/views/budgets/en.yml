@@ -103,6 +103,9 @@ en:
       move_money: "Move money from another envelope"
       move_from_placeholder: "Move from…"
       move: "Move"
+      goal_target: "%{amount}/mo"
+      goal_still_needed: "%{amount} to assign"
+      goal_funded: "Funded this month"
     show:
       category: "Category"
       overview: "Overview"

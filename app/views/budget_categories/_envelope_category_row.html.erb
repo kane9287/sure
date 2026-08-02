@@ -1,5 +1,9 @@
 <%# locals: (budget_category:, budget:) %>
 
+<% goal_target = budget.envelope_goal_target_for(budget_category.category_id) %>
+<% shortfall = goal_target && goal_target[:still_needed_money] %>
+<% goal_shortfall_prefill = shortfall&.positive? ? sprintf("%.2f", shortfall.amount) : nil %>
+
 <div id="<%= dom_id(budget_category, :envelope_row) %>" class="w-full flex gap-3 py-3 items-start">
   <div class="w-1 h-3 rounded-xl mt-1 flex-shrink-0" style="background-color: <%= budget_category.category.color %>"></div>
 
@@ -20,6 +24,25 @@
         </span>
       <% end %>
     </p>
+
+    <% if goal_target %>
+      <p class="text-xs text-secondary mt-1 flex items-center gap-1.5 flex-wrap">
+        <%= icon "target", size: "xs", color: "current" %>
+        <%= link_to goal_target[:goal].name, goal_path(goal_target[:goal]), class: "text-primary hover:underline" %>
+        <% if goal_target[:monthly_money] %>
+          <span class="privacy-sensitive"><%= t(".goal_target", amount: goal_target[:monthly_money].format(precision: 0)) %></span>
+          <% if goal_target[:still_needed_money].positive? %>
+            <span class="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium bg-warning/10 text-warning privacy-sensitive whitespace-nowrap">
+              <%= t(".goal_still_needed", amount: goal_target[:still_needed_money].format(precision: 0)) %>
+            </span>
+          <% else %>
+            <span class="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium bg-success/10 text-success whitespace-nowrap">
+              <%= t(".goal_funded") %>
+            </span>
+          <% end %>
+        <% end %>
+      </p>
+    <% end %>
 
     <% if budget_category.available_to_spend.negative? %>
       <details class="mt-2">
@@ -50,7 +73,10 @@
       <div class="form-field">
         <div class="flex items-center privacy-sensitive privacy-sensitive-interactive">
           <span class="text-secondary text-sm mr-2"><%= Money::Currency.new(budget.currency).symbol %></span>
+          <%# Prefilled with the goal's shortfall so hitting the target is one
+              click; still typed over like any other amount. %>
           <%= f.text_field "budget_allocation[amount]",
+                value: goal_shortfall_prefill,
                 class: "form-field__input text-right",
                 placeholder: "0.00" %>
         </div>

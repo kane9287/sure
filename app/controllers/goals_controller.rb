@@ -46,6 +46,7 @@ class GoalsController < ApplicationController
       currency: Current.family.primary_currency_code
     )
     @linkable_accounts = linkable_accounts_for_new
+    @linkable_categories = linkable_categories
     @breadcrumbs = plan_breadcrumb_prefix + [
       [ t("goals.index.title"), goals_path ],
       [ t("goals.new.heading"), nil ]
@@ -72,11 +73,13 @@ class GoalsController < ApplicationController
     end
   rescue ActiveRecord::RecordInvalid
     @linkable_accounts = linkable_accounts_for_new
+    @linkable_categories = linkable_categories
     render :new, status: :unprocessable_entity
   end
 
   def edit
     @linkable_accounts = linkable_accounts_for_new
+    @linkable_categories = linkable_categories
     @currently_linked_account_ids = @goal.goal_accounts.pluck(:account_id).map(&:to_s)
   end
 
@@ -85,16 +88,22 @@ class GoalsController < ApplicationController
     accounts_supplied = !account_ids.nil?
     accounts = accounts_supplied ? lookup_accounts(account_ids) : []
 
-    if accounts_supplied && accounts.empty?
+    # Unchecking every account is only an error if nothing else funds the goal.
+    # An envelope-linked goal legitimately has no accounts of its own.
+    update_params = goal_update_params
+    category_after_update = update_params.key?(:category_id) ? update_params[:category_id].presence : @goal.category_id
+
+    if accounts_supplied && accounts.empty? && category_after_update.blank?
       @goal.errors.add(:base, :at_least_one_linked_account_required)
       @linkable_accounts = linkable_accounts_for_new
+      @linkable_categories = linkable_categories
       @currently_linked_account_ids = @goal.goal_accounts.pluck(:account_id).map(&:to_s)
       render :edit, status: :unprocessable_entity
       return
     end
 
     Goal.transaction do
-      @goal.update!(goal_update_params)
+      @goal.update!(update_params)
       sync_linked_accounts!(@goal, accounts, submitted_allocations) if accounts_supplied
     end
 
@@ -107,6 +116,7 @@ class GoalsController < ApplicationController
     end
   rescue ActiveRecord::RecordInvalid
     @linkable_accounts = linkable_accounts_for_new
+    @linkable_categories = linkable_categories
     @currently_linked_account_ids = @goal.goal_accounts.pluck(:account_id).map(&:to_s)
     render :edit, status: :unprocessable_entity
   end
@@ -157,11 +167,11 @@ class GoalsController < ApplicationController
     end
 
     def goal_params
-      params.require(:goal).permit(:name, :target_amount, :target_date, :color, :icon, :notes)
+      params.require(:goal).permit(:name, :target_amount, :target_date, :color, :icon, :notes, :category_id, :monthly_contribution)
     end
 
     def goal_update_params
-      params.require(:goal).permit(:name, :target_amount, :target_date, :color, :icon, :notes)
+      params.require(:goal).permit(:name, :target_amount, :target_date, :color, :icon, :notes, :category_id, :monthly_contribution)
     end
 
     def lookup_accounts(ids)
@@ -173,6 +183,10 @@ class GoalsController < ApplicationController
 
     def linkable_accounts_for_new
       Current.user.accessible_accounts.where(accountable_type: FUNDABLE_TYPES).visible.alphabetically.to_a
+    end
+
+    def linkable_categories
+      Current.family.categories.alphabetically_by_hierarchy.to_a
     end
 
     def sync_linked_accounts!(goal, accounts, allocations = {})

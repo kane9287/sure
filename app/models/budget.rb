@@ -312,6 +312,50 @@ class Budget < ApplicationRecord
     initialized? && available_to_allocate >= 0 && allocated_spending > 0
   end
 
+  # Active goals that save into a category envelope, keyed by category_id, so
+  # the envelope rows can render each goal's target without firing a query per
+  # row. Loaded through Goal.prepared_for for the same reason: it injects the
+  # family-wide backing math the goals' balance/pace math would otherwise
+  # re-derive individually.
+  def envelope_goals_by_category
+    @envelope_goals_by_category ||= Goal.prepared_for(
+      family,
+      scope: family.goals.where.not(state: %w[completed archived]).where.not(category_id: nil)
+    ).index_by(&:category_id)
+  end
+
+  # Net funding into each envelope within this budget's period — what the
+  # "still to assign this month" figure is measured against. Distinct from
+  # Family#envelope_assigned_by_category, which is cumulative since activation.
+  def envelope_funded_this_period_by_category
+    @envelope_funded_this_period_by_category ||= family.budget_allocations
+                                                       .where(date: period.start_date..period.end_date)
+                                                       .group(:category_id)
+                                                       .sum(:amount)
+  end
+
+  # The goal saving into `category_id` and how much is still to assign this
+  # month to hit its monthly target — the YNAB-style target line on an envelope
+  # row. nil when no goal points at the category. still_needed_money is nil for
+  # a goal with no monthly target (open-ended, no declared contribution), which
+  # is a goal without a monthly ask rather than one that's fully funded.
+  def envelope_goal_target_for(category_id)
+    goal = envelope_goals_by_category[category_id]
+    return nil if goal.nil?
+
+    monthly = goal.monthly_target_amount
+    return { goal: goal, monthly_money: nil, still_needed_money: nil } if monthly.nil?
+
+    funded = (envelope_funded_this_period_by_category[category_id] || 0).to_d
+    still_needed = [ monthly.to_d - funded, 0 ].max
+
+    {
+      goal: goal,
+      monthly_money: Money.new(monthly, goal.currency),
+      still_needed_money: Money.new(still_needed, goal.currency)
+    }
+  end
+
   # =============================================================================
   # Income: How much user earned relative to what they expected to earn
   # =============================================================================

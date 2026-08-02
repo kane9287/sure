@@ -8,6 +8,9 @@ class Goal < ApplicationRecord
   validates :color, format: { with: /\A#[0-9A-Fa-f]{6}\z/ }, allow_nil: true
 
   belongs_to :family
+  # The category envelope this goal saves into (envelope mode). Optional: a
+  # goal is backed by accounts, by an envelope, or by both.
+  belongs_to :category, optional: true
   # autosave so earmark (allocated_amount) edits on already-linked accounts
   # persist through goal.save! — without it Rails only saves newly built
   # children, silently dropping changes to existing goal_accounts.
@@ -21,17 +24,19 @@ class Goal < ApplicationRecord
   validates :name, presence: true, length: { maximum: 255 }
   validates :target_amount, presence: true, numericality: { greater_than: 0 }
   validates :currency, presence: true
+  validates :monthly_contribution, numericality: { greater_than: 0 }, allow_nil: true
   # before_save (not before_validation) so it only mutates on persistence, not
   # on every valid? call — a goal can be inspected without its basis flipping.
   before_save :default_progress_basis_for_investment
 
-  validate :must_have_at_least_one_linked_account
+  validate :must_have_at_least_one_funding_source
   validate :linked_accounts_must_be_fundable
   validate :linked_accounts_must_match_goal_currency
   validate :linked_accounts_must_belong_to_family
+  validate :category_must_belong_to_family
   validate :currency_locked_once_linked
 
-  monetize :target_amount
+  monetize :target_amount, :monthly_contribution
 
   # Account types that can back a goal (see linked_accounts_must_be_fundable).
   FUNDABLE_ACCOUNT_TYPES = %w[Depository Investment].freeze
@@ -101,6 +106,28 @@ class Goal < ApplicationRecord
 
   attr_writer :pooled_pace
 
+  # Family-wide map of each category envelope's rolling balance
+  # (category_id => amount) — the envelope-basis equivalent of an account
+  # balance. Empty in cap mode, where no envelope math exists.
+  def self.envelope_balances_for(family)
+    family.envelope_mode? ? family.envelope_balances_by_category : Hash.new(0)
+  end
+
+  attr_writer :envelope_balances
+
+  # Family-wide map of net funding into each category envelope over the
+  # trailing 90 days (category_id => net BudgetAllocation amount) — the
+  # envelope-basis equivalent of pace_for's account inflow. Sweeps back to
+  # Unassigned are stored negative, so a plain sum is already net.
+  def self.envelope_pace_for(family)
+    family.budget_allocations
+          .where(date: 90.days.ago.to_date..Date.current)
+          .group(:category_id)
+          .sum(:amount)
+  end
+
+  attr_writer :envelope_pace
+
   # Goals loaded ready to render: association preloads for the card/row
   # partials plus the family-wide pooled-allocations + market-flows injection
   # so the per-goal backing math doesn't fire a query per row (N+1). Pass a
@@ -113,17 +140,21 @@ class Goal < ApplicationRecord
     goals
   end
 
-  # One family-wide earmark-pool + market-flows + pace read shared across
-  # every goal in the list (see pooled_allocations_for / market_flows_for /
-  # pace_for).
+  # One family-wide earmark-pool + market-flows + pace + envelope read shared
+  # across every goal in the list (see pooled_allocations_for /
+  # market_flows_for / pace_for / envelope_balances_for / envelope_pace_for).
   def self.inject_backing_math!(goals, family)
     pooled = pooled_allocations_for(family)
     flows = market_flows_for(family)
     pace_map = pace_for(family)
+    envelope_balance_map = envelope_balances_for(family)
+    envelope_pace_map = envelope_pace_for(family)
     goals.each do |goal|
       goal.pooled_allocations = pooled
       goal.market_flows = flows
       goal.pooled_pace = pace_map
+      goal.envelope_balances = envelope_balance_map
+      goal.envelope_pace = envelope_pace_map
     end
   end
 
@@ -188,8 +219,11 @@ class Goal < ApplicationRecord
     end
   end
 
-  # Balance is this goal's backing across its linked depository accounts that
-  # match the goal's currency. Each linked account contributes either its
+  # On the envelope basis, the balance is simply what's been assigned into the
+  # linked category envelope — no account math applies.
+  #
+  # Otherwise it's this goal's backing across its linked depository accounts
+  # that match the goal's currency. Each linked account contributes either its
   # earmarked slice (goal_accounts.allocated_amount) or — when unallocated —
   # the whole balance left after other goals' earmarks (see
   # #backing_balance_for). The model validates the currency invariant at write
@@ -197,7 +231,11 @@ class Goal < ApplicationRecord
   # direct DB writes, account-currency edits outside goal validation, or
   # future code that bypasses the validation chain.
   def current_balance
-    @current_balance ||= begin
+    return @current_balance if defined?(@current_balance)
+
+    @current_balance = if envelope_basis?
+      envelope_balance
+    else
       matching = linked_accounts.select { |a| a.currency == currency }
       if matching.size != linked_accounts.size
         Rails.logger.warn("Goal##{id} linked-account currency drift: #{linked_accounts.size - matching.size} of #{linked_accounts.size} mismatched (expected #{currency})")
@@ -205,6 +243,12 @@ class Goal < ApplicationRecord
       end
       matching.sum { |account| account_amount_for(account) }
     end
+  end
+
+  # Progress measured by what's been assigned into the linked category envelope
+  # (Family#envelope_balances_by_category), rather than by an account balance.
+  def envelope_basis?
+    progress_basis == "envelope"
   end
 
   def current_balance_money
@@ -264,10 +308,17 @@ class Goal < ApplicationRecord
     [ (days / 30.0), 0.0 ].max
   end
 
+  # What the user should assign this month. A declared monthly_contribution
+  # wins outright — that's the YNAB "save this much per month" target, and it's
+  # a fixed schedule rather than a figure that shifts every time the balance
+  # or the calendar moves. Without one it stays derived from the target and
+  # date, which means open-ended goals have no monthly figure at all.
   def monthly_target_amount
     return @monthly_target_amount if defined?(@monthly_target_amount)
 
-    @monthly_target_amount = if target_date.nil?
+    @monthly_target_amount = if monthly_contribution.present?
+      monthly_contribution.to_d
+    elsif target_date.nil?
       nil
     elsif months_remaining.zero?
       remaining_amount
@@ -276,7 +327,10 @@ class Goal < ApplicationRecord
     end
   end
 
-  # 90-day rolling monthly pace: net inflow into linked accounts divided by
+  # 90-day rolling monthly pace. On the envelope basis that's net funding into
+  # the linked category over the window, divided by three months.
+  #
+  # Otherwise it's net inflow into linked accounts divided by
   # three months. Transfers between linked accounts net to zero (both sides
   # land inside this account set). Transfers from outside (e.g. checking
   # into linked savings) net positive, which is the behaviour we want: the
@@ -291,7 +345,11 @@ class Goal < ApplicationRecord
   def pace
     return @pace if defined?(@pace)
 
-    @pace = if linked_accounts.empty?
+    @pace = if envelope_basis?
+      # Assignments into the envelope, not spending out of it: the pace of a
+      # goal is how fast the user is putting money toward it.
+      ((envelope_pace[category_id] || 0).to_d / 3).round(2)
+    elsif linked_accounts.empty?
       0
     else
       net = linked_accounts.sum { |account| pooled_pace.fetch(account.id, 0).to_d }
@@ -393,15 +451,16 @@ class Goal < ApplicationRecord
   end
 
   # :reached         → completed, or no remaining amount
-  # :on_track        → has target_date and pace >= required monthly
-  # :behind          → has target_date and pace < required monthly
-  # :no_target_date  → open-ended
+  # :on_track        → has a monthly target and pace >= it
+  # :behind          → has a monthly target and pace < it
+  # :no_target_date  → open-ended with no declared monthly contribution, so
+  #                    there's no benchmark to be on track against
   def status
     return @status if defined?(@status)
 
     @status = if completed? || remaining_amount.to_d.zero?
       :reached
-    elsif target_date.nil?
+    elsif monthly_target_amount.nil?
       :no_target_date
     elsif monthly_target_amount.to_d <= pace.to_d
       :on_track
@@ -640,6 +699,24 @@ class Goal < ApplicationRecord
       @pooled_pace ||= self.class.pace_for(family)
     end
 
+    # What's currently sitting in this goal's category envelope. Zero for a
+    # goal with no category, and zero in cap mode (no envelope math exists to
+    # read), which keeps the basis inert rather than erroring if a family
+    # switches modes with envelope goals on the books.
+    def envelope_balance
+      return 0.to_d if category_id.blank?
+
+      (envelope_balances[category_id] || 0).to_d
+    end
+
+    def envelope_balances
+      @envelope_balances ||= self.class.envelope_balances_for(family)
+    end
+
+    def envelope_pace
+      @envelope_pace ||= self.class.envelope_pace_for(family)
+    end
+
     # Cleared after every AASM transition. The state column drives the
     # display_status / projection_summary memos; without this the same
     # instance keeps returning the pre-transition value if a controller
@@ -693,10 +770,23 @@ class Goal < ApplicationRecord
       []
     end
 
-    def must_have_at_least_one_linked_account
+    # A goal needs somewhere for its money to actually live: one or more linked
+    # accounts, or a category envelope. Envelope-linked goals often have no
+    # account of their own — a holiday fund typically sits inside the everyday
+    # checking account — and forcing an account link there is exactly what made
+    # goals claim a whole account's balance.
+    def must_have_at_least_one_funding_source
+      return if category_id.present?
       return unless goal_accounts.reject(&:marked_for_destruction?).empty?
 
       errors.add(:base, :at_least_one_linked_account_required)
+    end
+
+    def category_must_belong_to_family
+      return if category.nil? || family.nil?
+      return if category.family_id == family_id
+
+      errors.add(:category, :must_belong_to_family)
     end
 
     def linked_accounts_must_be_fundable
@@ -708,14 +798,20 @@ class Goal < ApplicationRecord
       errors.add(:linked_accounts, :must_be_fundable)
     end
 
-    # Goals funded by an investment account default to the contributions basis
-    # (so a market swing doesn't move them); depository-only goals stay on the
-    # balance basis. Only auto-set when the basis is still the default.
+    # Goals funded by a category envelope measure progress by what's been
+    # assigned into that envelope; goals funded by an investment account default
+    # to the contributions basis (so a market swing doesn't move them);
+    # depository-only goals stay on the balance basis. Only auto-set when the
+    # basis is still the default. Envelope wins over investment: pointing a goal
+    # at an envelope is an explicit statement about where the money lives.
     def default_progress_basis_for_investment
-      return unless goal_accounts.any? { |ga| ga.account&.investment? }
       return unless progress_basis.blank? || progress_basis == "balance"
 
-      self.progress_basis = "contributions"
+      if category_id.present?
+        self.progress_basis = "envelope"
+      elsif goal_accounts.any? { |ga| ga.account&.investment? }
+        self.progress_basis = "contributions"
+      end
     end
 
     def linked_accounts_must_match_goal_currency

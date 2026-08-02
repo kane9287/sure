@@ -17,6 +17,7 @@ export default class extends Controller {
     "amountError",
     "accountsError",
     "linkedAccountCheckbox",
+    "categorySelect",
     "suggested",
     "submitButton",
   ];
@@ -77,21 +78,33 @@ export default class extends Controller {
 
   linkedAccountChanged() {
     this.updateSuggested();
-    if (this.linkedAccountCheckboxTargets.some((cb) => cb.checked) && this.hasAccountsErrorTarget) {
+    if (this.#hasFundingSource() && this.hasAccountsErrorTarget) {
       this.accountsErrorTarget.classList.add("hidden");
     }
     this.refreshSubmitState();
   }
 
-  // Required to create a goal: a name, a positive target amount, and at least
-  // one funding account. Mirrors the server-side Goal validations (name
-  // presence, target_amount > 0, must_have_at_least_one_linked_account) so the
-  // button only enables when a submit would actually succeed.
+  // A goal is funded by accounts, by a category envelope, or by both — the
+  // server-side must_have_at_least_one_funding_source validation accepts
+  // either, so the client-side gate has to as well.
+  categoryChanged() {
+    this.linkedAccountChanged();
+  }
+
+  // Required to create a goal: a name, a positive target amount, and a funding
+  // source. Mirrors the server-side Goal validations (name presence,
+  // target_amount > 0, must_have_at_least_one_funding_source) so the button
+  // only enables when a submit would actually succeed.
   isValid() {
     const name = this.hasNameInputTarget ? this.nameInputTarget.value.trim() : "";
     const amount = this.hasAmountInputTarget ? Number.parseFloat(this.amountInputTarget.value) : Number.NaN;
-    const accountOk = !this.requireAccountValue || this.linkedAccountCheckboxTargets.some((cb) => cb.checked);
-    return name.length > 0 && Number.isFinite(amount) && amount > 0 && accountOk;
+    const fundingOk = !this.requireAccountValue || this.#hasFundingSource();
+    return name.length > 0 && Number.isFinite(amount) && amount > 0 && fundingOk;
+  }
+
+  #hasFundingSource() {
+    if (this.linkedAccountCheckboxTargets.some((cb) => cb.checked)) return true;
+    return this.hasCategorySelectTarget && this.categorySelectTarget.value !== "";
   }
 
   // `aria-disabled` instead of the `disabled` attribute: a truly disabled
@@ -118,7 +131,7 @@ export default class extends Controller {
     const nameEmpty = !(this.hasNameInputTarget && this.nameInputTarget.value.trim().length > 0);
     const amount = this.hasAmountInputTarget ? Number.parseFloat(this.amountInputTarget.value) : Number.NaN;
     const amountInvalid = !(Number.isFinite(amount) && amount > 0);
-    const noAccount = this.requireAccountValue && !this.linkedAccountCheckboxTargets.some((cb) => cb.checked);
+    const noAccount = this.requireAccountValue && !this.#hasFundingSource();
 
     if (nameEmpty) {
       this.showFieldError(this.nameInputTarget, this.hasNameErrorTarget ? this.nameErrorTarget : null);

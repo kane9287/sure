@@ -191,6 +191,24 @@ class FamilyEnvelopeTest < ActiveSupport::TestCase
     assert_equal unassigned_before, @family.unassigned_pool_balance.amount
   end
 
+  test "funding a goal's envelope moves the pool by exactly the amount assigned" do
+    @family.activate_envelope_mode!
+    category = Category.create!(name: "Goal Envelope #{Time.now.to_f}", family: @family, color: "#445566")
+    goal = @family.goals.create!(name: "Holiday fund", target_amount: 1_200, currency: "USD", category: category)
+
+    @family.reset_envelope_caches!
+    unassigned_before = @family.unassigned_pool_balance.amount
+
+    @family.budget_allocations.create!(category: category, amount: 500, currency: "USD", date: Date.current, kind: "fund")
+    @family.reset_envelope_caches!
+
+    # Assigning is the only thing that moves money: $500 out of the pool, $500
+    # into the envelope, $500 of progress on the goal.
+    assert_equal unassigned_before - 500, @family.unassigned_pool_balance.amount
+    assert_equal 500, @family.envelope_balances_by_category[category.id]
+    assert_equal BigDecimal("500"), Goal.find(goal.id).current_balance.to_d
+  end
+
   test "in_budget_cash_balance sums balances across in-budget accounts" do
     account = accounts(:depository)
     other_account = accounts(:connected)

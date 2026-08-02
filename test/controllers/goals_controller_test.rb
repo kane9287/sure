@@ -302,4 +302,53 @@ class GoalsControllerTest < ActionDispatch::IntegrationTest
     assert_redirected_to goals_path
     assert_equal I18n.t("goals.errors.not_found"), flash[:alert]
   end
+
+  test "create persists an envelope-linked goal with no accounts" do
+    category = categories(:food_and_drink)
+
+    assert_difference -> { Goal.count }, 1 do
+      post goals_url, params: {
+        goal: {
+          name: "Christmas fund",
+          target_amount: "1200",
+          currency: "USD",
+          color: "#4da568",
+          category_id: category.id,
+          monthly_contribution: "150"
+        }
+      }
+    end
+
+    goal = Goal.order(created_at: :desc).first
+    assert_redirected_to goal_path(goal)
+    assert_equal category.id, goal.category_id
+    assert_equal BigDecimal("150"), goal.monthly_contribution
+    assert_empty goal.goal_accounts
+  end
+
+  test "update round-trips category_id and monthly_contribution" do
+    category = categories(:food_and_drink)
+
+    patch goal_url(@goal), params: {
+      goal: { category_id: category.id, monthly_contribution: "250" }
+    }
+
+    assert_redirected_to goal_path(@goal)
+    updated = @goal.reload
+    assert_equal category.id, updated.category_id
+    assert_equal BigDecimal("250"), updated.monthly_contribution
+  end
+
+  test "update with empty account_ids succeeds when a category funds the goal" do
+    # The account-only guard would otherwise reject unlinking every account,
+    # even though the envelope is now the funding source.
+    patch goal_url(@goal), params: {
+      goal: { account_ids: [ "" ], category_id: categories(:food_and_drink).id }
+    }
+
+    assert_redirected_to goal_path(@goal)
+    updated = @goal.reload
+    assert_empty updated.goal_accounts
+    assert_equal categories(:food_and_drink).id, updated.category_id
+  end
 end

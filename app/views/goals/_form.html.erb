@@ -1,4 +1,4 @@
-<%# locals: (goal:, linkable_accounts:, currently_linked_account_ids: []) %>
+<%# locals: (goal:, linkable_accounts:, linkable_categories: [], currently_linked_account_ids: []) %>
 
 <div data-controller="goal-form"
      data-goal-form-currency-value="<%= Current.family.primary_currency_code %>"
@@ -39,6 +39,22 @@
     </div>
 
     <p class="text-xs text-secondary italic tabular-nums privacy-sensitive hidden" data-goal-form-target="suggested"></p>
+
+    <div class="grid grid-cols-2 gap-3 items-start">
+      <div>
+        <%= f.select :category_id,
+                     linkable_categories.map { |category| [ category.display_name, category.id ] },
+                     { include_blank: t("goals.form.fields.no_category"), label: t("goals.form.fields.category") },
+                     { data: { goal_form_target: "categorySelect", action: "change->goal-form#categoryChanged" } } %>
+        <p class="text-xs text-secondary mt-0.5"><%= t("goals.form.fields.category_hint") %></p>
+      </div>
+      <div>
+        <%= f.money_field :monthly_contribution,
+                          label: t("goals.form.fields.monthly_contribution"),
+                          hide_currency: true %>
+        <p class="text-xs text-secondary mt-0.5"><%= t("goals.form.fields.monthly_contribution_hint") %></p>
+      </div>
+    </div>
 
     <div>
       <div class="mb-2">

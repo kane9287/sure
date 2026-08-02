@@ -479,4 +479,76 @@ class GoalTest < ActiveSupport::TestCase
     assert_equal 1, summary[:behind_count]
     assert_kind_of Money, summary[:saved_money]
   end
+
+  test "a declared monthly_contribution overrides the derived monthly target" do
+    @goal.update!(target_amount: 12_000, target_date: 12.months.from_now.to_date)
+    assert Goal.find(@goal.id).monthly_target_amount.to_d.positive?
+
+    @goal.update!(monthly_contribution: 150)
+
+    assert_equal BigDecimal("150"), Goal.find(@goal.id).monthly_target_amount.to_d
+  end
+
+  test "monthly_contribution gives an open-ended goal a monthly target and a status" do
+    @family.activate_envelope_mode!
+    category = Category.create!(name: "Open Ended #{Time.now.to_f}", family: @family, color: "#123456")
+    @family.goals.create!(
+      name: "Open ended", target_amount: 9_000, currency: "USD",
+      target_date: nil, monthly_contribution: 300, category: category
+    )
+
+    goal = @family.goals.find_by!(name: "Open ended")
+
+    # An open-ended goal had no monthly figure at all before; a declared
+    # contribution gives it one, so it can be behind pace rather than
+    # permanently :no_target_date.
+    assert_equal BigDecimal("300"), goal.monthly_target_amount.to_d
+    assert_equal :behind, goal.status
+  end
+
+  test "monthly_contribution must be positive when given" do
+    @goal.monthly_contribution = 0
+    assert_not @goal.valid?
+  end
+
+  test "a goal linked to a category needs no account and measures the envelope balance" do
+    @family.activate_envelope_mode!
+    category = Category.create!(name: "Holiday #{Time.now.to_f}", family: @family, color: "#123456")
+
+    goal = @family.goals.create!(name: "Holiday fund", target_amount: 1_200, currency: "USD", category: category)
+
+    assert goal.persisted?
+    assert_empty goal.linked_accounts
+    assert_equal "envelope", goal.progress_basis
+    assert goal.envelope_basis?
+    assert_equal 0, goal.current_balance.to_d
+
+    @family.budget_allocations.create!(
+      category: category, amount: 300, currency: "USD", date: Date.current, kind: "fund"
+    )
+
+    fresh = Goal.find(goal.id)
+    assert_equal BigDecimal("300"), fresh.current_balance.to_d
+    assert_equal BigDecimal("900"), fresh.remaining_amount.to_d
+  end
+
+  test "envelope-basis pace measures funding into the category, not account inflow" do
+    @family.activate_envelope_mode!
+    category = Category.create!(name: "Pace #{Time.now.to_f}", family: @family, color: "#654321")
+    goal = @family.goals.create!(name: "Paced", target_amount: 5_000, currency: "USD", category: category)
+
+    @family.budget_allocations.create!(
+      category: category, amount: 600, currency: "USD", date: Date.current, kind: "fund"
+    )
+
+    # $600 assigned over the 90-day window = $200/mo.
+    assert_equal BigDecimal("200"), Goal.find(goal.id).pace.to_d
+  end
+
+  test "a goal with neither an account nor a category is invalid" do
+    goal = @family.goals.new(name: "Nowhere", target_amount: 500, currency: "USD")
+
+    assert_not goal.valid?
+    assert_includes goal.errors[:base], I18n.t("activerecord.errors.models.goal.attributes.base.at_least_one_linked_account_required")
+  end
 end
