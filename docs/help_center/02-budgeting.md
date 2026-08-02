@@ -42,11 +42,13 @@ Here's the flow:
 5. Unspent money in an envelope **carries forward** to next month — it doesn't reset to zero. Categories build up a cushion over time if you don't spend the full amount.
 
 > [!IMPORTANT]
-> **Unassigned is real cash, not a projection.** It's calculated from your actual account balances minus whatever you've already assigned to envelopes and goals — it is *not* an estimate of income you expect to receive. You can't type in a number for it; it always reflects reality. If it looks wrong, it's almost always because a transaction or account balance needs attention (see [Good Habits](03-good-habits.md)), not because the app is guessing wrong.
+> **Unassigned is real cash, not a projection.** It's calculated from your actual account balances minus whatever you've already assigned to envelopes — it is *not* an estimate of income you expect to receive. You can't type in a number for it; it always reflects reality. If it looks wrong, it's almost always because a transaction or account balance needs attention (see [Good Habits](03-good-habits.md)), not because the app is guessing wrong.
 
 ### Goals and envelopes
 
-If you're using [Goals](04-glossary.md#goal) to save toward something specific (like an emergency fund or a big purchase), money "earmarked" for a goal is also subtracted from Unassigned — same idea as an envelope, just for longer-term saving.
+A [Goal](04-glossary.md#goal) never takes money out of Unassigned on its own. Money leaves Unassigned when *you* assign it, and nothing else — that's what keeps the number honest and keeps a long-term goal from swallowing a month's budget.
+
+If you're saving toward something specific (an emergency fund, a holiday fund, a new laptop), point the goal at a category and fund that category like any other envelope. The goal then acts as a **target** on that envelope: it shows what you're saving for, how much you've assigned so far, and how much more to assign this month to stay on pace. Assigning the money is what moves it; the target just tells you how much to assign.
 
 ## How balance reconciliation interacts with budgeting
 

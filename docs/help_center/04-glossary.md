@@ -24,7 +24,7 @@ Every term used in the app, in one place. Alphabetical.
 
 **Fund / Funding** — In Envelope Mode, the act of moving money from Unassigned into a category's envelope.
 
-**Goal** — A savings target tied to one or more accounts (e.g. an emergency fund). Money allocated to a goal is earmarked and subtracted from Unassigned, similar to an envelope.
+**Goal** — A savings target (e.g. an emergency fund), tracked either against one or more accounts or against a category envelope. A goal never subtracts money from Unassigned on its own — you fund it by assigning money the same way you fund any other envelope.
 
 **Holding** — In an investment account, the current position in a specific security (how many shares/units you own).
 
@@ -50,6 +50,6 @@ Every term used in the app, in one place. Alphabetical.
 
 **Transfer** — A transaction type for money moving between two of your own accounts. Doesn't count as income or spending.
 
-**Unassigned** — In Envelope Mode, the pool of real cash in your budget accounts that hasn't yet been funded into any category envelope or goal. Always derived from actual balances — never a typed-in or projected number.
+**Unassigned** — In Envelope Mode, the pool of real cash in your budget accounts that hasn't yet been funded into a category envelope. Always derived from actual balances — never a typed-in or projected number.
 
 **Uncategorized** — The synthetic bucket for transactions that don't have a category assigned yet. Not an error — just a "needs attention" state.

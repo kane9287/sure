@@ -147,12 +147,8 @@ class FamilyEnvelopeTest < ActiveSupport::TestCase
     assert_equal unassigned_before - 30, @family.unassigned_pool_balance.amount
   end
 
-  test "unassigned_pool_balance satisfies cash == unassigned + envelope balances + goal earmarks" do
+  test "unassigned_pool_balance satisfies cash == unassigned + envelope balances" do
     @family.activate_envelope_mode!
-    # The shared goals fixtures deliberately point three goals at the same
-    # account, which is the ambiguous shared-pool case the family-wide clamp
-    # covers — not a clean basis for asserting exact figures.
-    @family.goals.destroy_all
     category = Category.create!(name: "Identity Test #{Time.now.to_f}", family: @family, color: "#222333")
     account = accounts(:depository)
 
@@ -167,106 +163,32 @@ class FamilyEnvelopeTest < ActiveSupport::TestCase
       currency: "USD"
     )
 
-    goal_account = create_in_budget_account(balance: 500)
-    create_whole_account_goal(account: goal_account, target_amount: 200)
-
     @family.reset_envelope_caches!
 
-    # $300 funded - $120 spent = $180 still reserved in the envelope, and the
-    # goal earmarks $200 of its $500 backing account (capped at its target).
+    # $300 funded - $120 spent = $180 still reserved in the envelope; every
+    # other dollar of in-budget cash is unassigned.
     assert_equal 180, @family.envelope_balances_by_category[category.id]
     assert_equal(
-      @family.in_budget_cash_balance.amount - @family.envelope_balances_by_category.values.sum - 200,
+      @family.in_budget_cash_balance.amount - @family.envelope_balances_by_category.values.sum,
       @family.unassigned_pool_balance.amount
     )
   end
 
-  test "a whole-account goal earmarks its backing out of the unassigned pool" do
+  test "a goal backed by an in-budget account does not move the unassigned pool" do
     @family.activate_envelope_mode!
-    @family.goals.destroy_all
-    account = create_in_budget_account(balance: 400)
-
-    @family.reset_envelope_caches!
-    unassigned_before = @family.unassigned_pool_balance.amount
-
-    create_whole_account_goal(account: account, target_amount: 1_000)
-    @family.reset_envelope_caches!
-
-    # Whole-account link (goal_accounts.allocated_amount is nil): the account's
-    # entire $400 backs a goal that still needs $1,000, so all of it leaves the
-    # pool.
-    assert_equal unassigned_before - 400, @family.unassigned_pool_balance.amount
-  end
-
-  test "a goal earmarks only up to its target; backing beyond that stays unassigned" do
-    @family.activate_envelope_mode!
-    @family.goals.destroy_all
-    account = create_in_budget_account(balance: 3_000)
-
-    @family.reset_envelope_caches!
-    unassigned_before = @family.unassigned_pool_balance.amount
-
-    create_whole_account_goal(account: account, target_amount: 1_200)
-    @family.reset_envelope_caches!
-
-    # $3,000 backs a $1,200 goal, so only the $1,200 it needs is earmarked —
-    # the $1,800 of overflow stays allocatable.
-    assert_equal unassigned_before - 1_200, @family.unassigned_pool_balance.amount
-  end
-
-  test "archiving a goal releases its earmark back to the unassigned pool" do
-    @family.activate_envelope_mode!
-    @family.goals.destroy_all
     account = create_in_budget_account(balance: 800)
 
     @family.reset_envelope_caches!
     unassigned_before = @family.unassigned_pool_balance.amount
 
-    goal = create_whole_account_goal(account: account, target_amount: 800)
-    @family.reset_envelope_caches!
-    assert_equal unassigned_before - 800, @family.unassigned_pool_balance.amount
-
-    goal.archive!
+    # Goals never withhold cash on their own — they claim it by being funded
+    # into an envelope, like every other dollar. Reserving the backing account's
+    # balance instead would pull the whole $800 out of the pool and leave
+    # nothing to budget with.
+    create_whole_account_goal(account: account, target_amount: 5_000)
     @family.reset_envelope_caches!
 
     assert_equal unassigned_before, @family.unassigned_pool_balance.amount
-  end
-
-  test "a goal backed by an out-of-budget account does not touch the unassigned pool" do
-    @family.activate_envelope_mode!
-    @family.goals.destroy_all
-    account = create_in_budget_account(balance: 900)
-    account.update!(in_budget: false)
-
-    @family.reset_envelope_caches!
-    unassigned_before = @family.unassigned_pool_balance.amount
-
-    create_whole_account_goal(account: account, target_amount: 900)
-    @family.reset_envelope_caches!
-
-    assert_equal unassigned_before, @family.unassigned_pool_balance.amount
-  end
-
-  test "goal earmarks never exceed the family's in-budget cash" do
-    @family.activate_envelope_mode!
-    @family.goals.destroy_all
-    @family.accounts.update_all(in_budget: false)
-    account = create_in_budget_account(balance: 1_000)
-
-    @family.reset_envelope_caches!
-    unassigned_before = @family.unassigned_pool_balance.amount
-
-    # Two goals both dedicating the whole of the same account each claim its
-    # full balance (Goal#backing_share_for only nets out other goals' *fixed*
-    # earmarks), so the naive sum would be $2,000 earmarked against $1,000 of
-    # cash. The clamp holds it to the $1,000 that actually exists.
-    create_whole_account_goal(account: account, target_amount: 5_000)
-    create_whole_account_goal(account: account, target_amount: 5_000)
-
-    @family.reset_envelope_caches!
-
-    assert_equal 1_000, @family.in_budget_cash_balance.amount
-    assert_equal unassigned_before - 1_000, @family.unassigned_pool_balance.amount
   end
 
   test "in_budget_cash_balance sums balances across in-budget accounts" do

@@ -2,8 +2,10 @@
 
 <% family = budget.family %>
 <% total_cash = family.in_budget_cash_balance %>
-<% assigned = family.envelope_balances_by_category.values.sum %>
 <% unassigned = family.unassigned_pool_balance %>
+<%# Derived from the headline rather than re-summed so the bar and the
+    Unassigned figure can never disagree. %>
+<% assigned = total_cash.amount - unassigned.amount %>
 <% percent_assigned = total_cash.amount.positive? ? (assigned / total_cash.amount.to_f * 100).clamp(0, 100) : 0 %>
 
 <div id="<%= dom_id(family, :unassigned_pool) %>" class="bg-container rounded-xl shadow-border-xs p-4 mb-4 space-y-3">

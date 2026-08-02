@@ -257,18 +257,20 @@ class Family < ApplicationRecord
     update!(budget_mode: "cap")
   end
 
-  # The family's cash not yet assigned to an envelope or earmarked to a goal:
-  # cash in in-budget accounts, minus every envelope's rolling balance
-  # (negative balances reduce the pool the same way positive ones reserve
-  # from it — see envelope_balances_by_category), minus goal earmarks.
-  # Only meaningful in envelope mode; nil otherwise so callers don't
-  # mistake a cap-mode family's $0 for "fully assigned."
+  # The family's cash not yet assigned to an envelope: cash in in-budget
+  # accounts, minus every envelope's rolling balance (negative balances reduce
+  # the pool the same way positive ones reserve from it — see
+  # envelope_balances_by_category). Nothing else subtracts from it; in
+  # particular goals never withhold cash on their own, they claim it by being
+  # funded into an envelope like everything else. Only meaningful in envelope
+  # mode; nil otherwise so callers don't mistake a cap-mode family's $0 for
+  # "fully assigned."
   def unassigned_pool_balance
     return nil unless envelope_mode?
 
     reserved_in_envelopes = envelope_balances_by_category.values.sum
 
-    Money.new(in_budget_cash_balance.amount - reserved_in_envelopes - earmarked_for_goals, primary_currency_code)
+    Money.new(in_budget_cash_balance.amount - reserved_in_envelopes, primary_currency_code)
   end
 
   def in_budget_accounts
@@ -290,8 +292,7 @@ class Family < ApplicationRecord
   # net actual spend, over the whole span — not clamped at zero. A negative
   # balance is exactly what makes an overspend reduce unassigned_pool_balance
   # (see above) without needing a separate period-end sweep step: the
-  # identity cash == unassigned + sum(envelope balances) + goal earmarks
-  # holds continuously.
+  # identity cash == unassigned + sum(envelope balances) holds continuously.
   #
   # Memoized per instance (cleared by reset_envelope_caches!) so rendering
   # every category on the budget page fires two queries total, not two per
@@ -309,47 +310,9 @@ class Family < ApplicationRecord
 
   def reset_envelope_caches!
     remove_instance_variable(:@envelope_category_math) if instance_variable_defined?(:@envelope_category_math)
-    remove_instance_variable(:@earmarked_for_goals) if instance_variable_defined?(:@earmarked_for_goals)
   end
 
   private
-    # Cash held out of the pool by sinking-fund goals. Each goal earmarks the
-    # backing it actually has in in-budget accounts — Goal#account_backing
-    # already resolves whole-account vs. fixed-slice links and nets out other
-    # goals' fixed earmarks on a shared account — capped at the goal's target,
-    # so backing beyond what the goal needs flows back to Unassigned instead of
-    # sitting locked away. Note that reading goal_accounts.allocated_amount
-    # directly would miss this entirely: an unallocated (whole-account) link,
-    # which is the default, stores NULL there.
-    #
-    # The family-wide clamp covers the one case backing_share_for doesn't
-    # arbitrate: two goals that BOTH dedicate the whole of the same account each
-    # claim its full remainder, so summing them could otherwise earmark more
-    # cash than the family holds and push Unassigned negative on goal math alone.
-    def earmarked_for_goals
-      @earmarked_for_goals ||= begin
-        in_budget_ids = in_budget_accounts.pluck(:id)
-
-        if in_budget_ids.empty?
-          0.to_d
-        else
-          # Same single-currency simplification as in_budget_cash_balance: no FX
-          # conversion happens anywhere in this envelope math.
-          scope = goals.where.not(state: "archived").where(currency: primary_currency_code)
-
-          total = Goal.prepared_for(self, scope: scope).sum do |goal|
-            backing = goal.linked_accounts.sum do |account|
-              in_budget_ids.include?(account.id) ? goal.account_backing(account).amount : 0.to_d
-            end
-
-            [ backing, goal.target_amount.to_d ].min
-          end
-
-          [ total, [ in_budget_cash_balance.amount, 0.to_d ].max ].min
-        end
-      end
-    end
-
     def envelope_category_math
       @envelope_category_math ||= begin
         activation = envelope_activated_on
