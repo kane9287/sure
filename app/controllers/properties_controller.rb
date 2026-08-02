@@ -52,6 +52,14 @@ class PropertiesController < ApplicationController
       @account.update!(currency: balance_params[:currency]) if balance_params[:currency].present?
       result = @account.set_current_balance(balance_params[:balance].to_d)
       raise ActiveRecord::Rollback unless result.success?
+
+      if balance_params[:purchase_price].present?
+        result = @account.set_opening_anchor_balance(
+          balance: balance_params[:purchase_price].to_d,
+          date: balance_params[:purchase_date].presence&.to_date
+        )
+        raise ActiveRecord::Rollback unless result.success?
+      end
     end
 
     if result&.success?
@@ -63,7 +71,7 @@ class PropertiesController < ApplicationController
         redirect_to address_property_path(@account)
       end
     else
-      @error_message = result&.error_message
+      @error_message = result&.error
       render :balances, status: :unprocessable_entity
     end
   end
@@ -216,7 +224,7 @@ class PropertiesController < ApplicationController
     end
 
     def balance_params
-      params.require(:account).permit(:balance, :currency)
+      params.require(:account).permit(:balance, :currency, :purchase_price, :purchase_date)
     end
 
     def address_params

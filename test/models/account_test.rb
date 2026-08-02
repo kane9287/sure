@@ -550,4 +550,15 @@ class AccountTest < ActiveSupport::TestCase
     outflow_transaction.reload
     assert_equal "standard", outflow_transaction.kind
   end
+
+  test "destroying an account linked to a debt plan destroys its debt_plan_account link" do
+    account = accounts(:credit_card)
+    plan = debt_plans(:card_payoff)
+
+    assert_difference "DebtPlanAccount.count", -1 do
+      account.destroy!
+    end
+
+    assert_not_includes plan.reload.linked_accounts, account
+  end
 end

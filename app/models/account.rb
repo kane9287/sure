@@ -28,6 +28,8 @@ class Account < ApplicationRecord
   has_many :goal_accounts, dependent: :destroy
   has_many :goals, through: :goal_accounts
   has_many :goal_pledges, dependent: :destroy
+  has_many :debt_plan_accounts, dependent: :destroy
+  has_many :debt_plans, through: :debt_plan_accounts
   # Inverse for recurring transfers where this account is the destination.
   # Account#recurring_transactions only matches account_id; without this
   # association, destroying the destination account would hit the FK

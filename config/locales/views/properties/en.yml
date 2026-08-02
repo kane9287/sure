@@ -54,6 +54,9 @@ en:
       title: "Enter property manually"
       market_value_label: "Estimated market value"
       market_value_tooltip: "The estimated market value of your property. This number can often be found on sites like Zillow or Redfin, and is never an exact number."
+      purchase_price_label: "Purchase price (optional)"
+      purchase_price_tooltip: "What you originally paid for the property. Leave blank if you'd rather it match the estimated market value."
+      purchase_date_label: "Purchase date (optional)"
       save: "Save"
       next: "Next"
     overview_fields:

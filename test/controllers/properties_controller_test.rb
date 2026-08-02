@@ -133,7 +133,7 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
   end
 
   test "balances update handles validation errors" do
-    Account.any_instance.stubs(:set_current_balance).returns(OpenStruct.new(success?: false, error_message: "Invalid balance"))
+    Account.any_instance.stubs(:set_current_balance).returns(OpenStruct.new(success?: false, error: "Invalid balance"))
 
     patch update_balances_property_path(@account), params: {
       account: {
@@ -143,6 +143,36 @@ class PropertiesControllerTest < ActionDispatch::IntegrationTest
     }
 
     assert_response :unprocessable_entity
+  end
+
+  test "updates balances tab with a purchase price and date" do
+    patch update_balances_property_path(@account), params: {
+      account: {
+        balance: 600000,
+        currency: "EUR",
+        purchase_price: 450000,
+        purchase_date: "2020-01-15"
+      }
+    }
+
+    @account.reload
+    assert_equal 600000, @account.balance
+    assert_equal 450000, @account.accountable.purchase_price.amount.to_i
+    assert_equal Date.new(2020, 1, 15), @account.opening_anchor_date
+  end
+
+  test "updates balances tab without a purchase price leaves opening anchor untouched" do
+    assert_not @account.has_opening_anchor?
+
+    patch update_balances_property_path(@account), params: {
+      account: {
+        balance: 600000,
+        currency: "EUR"
+      }
+    }
+
+    @account.reload
+    assert_not @account.has_opening_anchor?
   end
 
   test "address update handles validation errors" do

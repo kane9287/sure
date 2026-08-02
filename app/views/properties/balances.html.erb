@@ -14,6 +14,17 @@
                 label: t(".market_value_label"),
                 label_tooltip: t(".market_value_tooltip"),
                 placeholder: "0" %>
+
+            <%= form.money_field :purchase_price,
+                label: t(".purchase_price_label"),
+                label_tooltip: t(".purchase_price_tooltip"),
+                placeholder: "0",
+                hide_currency: true,
+                value: (@account.opening_anchor_balance.amount if @account.has_opening_anchor?) %>
+
+            <%= form.date_field :purchase_date,
+                label: t(".purchase_date_label"),
+                value: (@account.opening_anchor_date if @account.has_opening_anchor?) %>
           </div>
 
           <!-- Next button -->
