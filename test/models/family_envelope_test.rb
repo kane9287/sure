@@ -165,7 +165,7 @@ class FamilyEnvelopeTest < ActiveSupport::TestCase
 
     @family.reset_envelope_caches!
 
-    cash = @family.in_budget_accounts.where(currency: "USD").sum(:balance)
+    cash = @family.in_budget_cash_balance.amount
     reserved_in_envelopes = @family.envelope_balances_by_category.values.sum
     earmarked_for_goals = GoalAccount.joins(:goal)
       .where(account_id: @family.in_budget_accounts.select(:id))
@@ -174,6 +174,17 @@ class FamilyEnvelopeTest < ActiveSupport::TestCase
       .sum(:allocated_amount)
 
     assert_equal cash - reserved_in_envelopes - earmarked_for_goals, @family.unassigned_pool_balance.amount
+  end
+
+  test "in_budget_cash_balance sums balances across in-budget accounts" do
+    account = accounts(:depository)
+    other_account = accounts(:connected)
+
+    assert_equal account.balance + other_account.balance, @family.in_budget_cash_balance.amount
+
+    account.update!(in_budget: false)
+
+    assert_equal other_account.balance, @family.in_budget_cash_balance.amount
   end
 
   test "in_budget_accounts excludes accounts with in_budget false" do

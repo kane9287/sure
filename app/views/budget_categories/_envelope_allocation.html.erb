@@ -2,22 +2,20 @@
 
 <%= render "budgets/unassigned_pool", budget: budget %>
 
-<div class="space-y-3 mb-4">
+<div class="divide-y divide-alpha-black-200 theme-dark:divide-alpha-white-200 mb-4">
   <% BudgetCategory::Group.for(budget_categories).sort_by(&:name).each do |group| %>
-    <div class="space-y-3">
-      <%= render "budget_categories/envelope_category_row", budget_category: group.budget_category, budget: budget %>
+    <%= render "budget_categories/envelope_category_row", budget_category: group.budget_category, budget: budget %>
 
-      <% group.budget_subcategories.each do |budget_subcategory| %>
-        <div class="w-full flex items-start gap-4">
-          <div class="ml-4 flex items-center justify-center text-subdued mt-3">
-            <%= icon("corner-down-right") %>
-          </div>
-          <div class="flex-1">
-            <%= render "budget_categories/envelope_category_row", budget_category: budget_subcategory, budget: budget %>
-          </div>
+    <% group.budget_subcategories.each do |budget_subcategory| %>
+      <div class="w-full flex items-start gap-4">
+        <div class="ml-4 flex items-center justify-center text-subdued pt-4">
+          <%= icon("corner-down-right") %>
         </div>
-      <% end %>
-    </div>
+        <div class="flex-1">
+          <%= render "budget_categories/envelope_category_row", budget_category: budget_subcategory, budget: budget %>
+        </div>
+      </div>
+    <% end %>
   <% end %>
 </div>
 

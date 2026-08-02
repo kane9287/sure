@@ -266,9 +266,6 @@ class Family < ApplicationRecord
   def unassigned_pool_balance
     return nil unless envelope_mode?
 
-    # Restricted to the primary currency, same caveat as savings_inflow_velocity
-    # above: mixed-currency families would otherwise sum raw EUR + USD figures.
-    cash = in_budget_accounts.where(currency: primary_currency_code).sum(:balance)
     reserved_in_envelopes = envelope_balances_by_category.values.sum
     earmarked_for_goals = GoalAccount.joins(:goal)
       .where(account_id: in_budget_accounts.select(:id))
@@ -276,11 +273,21 @@ class Family < ApplicationRecord
       .where.not(goals: { state: "archived" })
       .sum(:allocated_amount)
 
-    Money.new(cash - reserved_in_envelopes - earmarked_for_goals, primary_currency_code)
+    Money.new(in_budget_cash_balance.amount - reserved_in_envelopes - earmarked_for_goals, primary_currency_code)
   end
 
   def in_budget_accounts
     accounts.where(accountable_type: "Depository", in_budget: true, status: "active")
+  end
+
+  # Total cash sitting in this family's in-budget accounts, restricted to the
+  # primary currency (same caveat as savings_inflow_velocity: mixed-currency
+  # families would otherwise sum raw EUR + USD figures). Exposed publicly so
+  # views can show it alongside unassigned_pool_balance without duplicating
+  # the query — this is the real, self-reconciling number that Unassigned is
+  # derived from (not a projected/expected income figure).
+  def in_budget_cash_balance
+    Money.new(in_budget_accounts.where(currency: primary_currency_code).sum(:balance), primary_currency_code)
   end
 
   # Each envelope category's rolling available-to-spend balance since
