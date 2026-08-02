@@ -85,6 +85,8 @@ feedback_screenshots/
 
 # Added by Claude
 .claude/settings.local.json
+# Local tool state (pid/port of the machine that last ran it), not project config
+.claude/.headroom_wrap_marker.json
 docs/superpowers/
 
 # Added by Claude Task Master
