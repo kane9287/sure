@@ -122,4 +122,16 @@
       </div>
     <% end %>
   <% end %>
+
+  <%# Sibling of the card link, never inside it: an <a> nested in an <a> is
+      invalid HTML, and the parser auto-closes the outer one — which dropped
+      this link out of the card's padding entirely.
+      The anchor has to match the row's own id, not the card's. %>
+  <% if budget_category.budget.family.envelope_mode? && budget_category.initialized? %>
+    <div class="px-4 pb-2 bg-container" data-turbo="false">
+      <%= link_to t("budget_categories.envelope_category_details.adjust"),
+          budget_budget_categories_path(budget_category.budget, anchor: dom_id(budget_category, :envelope_row)),
+          class: "text-xs font-medium text-secondary hover:text-primary underline underline-offset-2" %>
+    </div>
+  <% end %>
 <% end %>

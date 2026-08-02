@@ -301,9 +301,10 @@ class Family < ApplicationRecord
     envelope_category_math[:balances]
   end
 
-  # Each category's cumulative net funding (fund - sweep) since activation —
-  # the "Assigned" figure shown alongside the rolling balance. Same memoized
-  # pass as envelope_balances_by_category.
+  # Each category's cumulative net funding (fund - sweep) since activation.
+  # Same memoized pass as envelope_balances_by_category. The UI's "Assigned"
+  # figure is the per-period one (BudgetCategory#envelope_assigned); this is
+  # the lifetime total behind it.
   def envelope_assigned_by_category
     envelope_category_math[:assigned]
   end

@@ -38,13 +38,18 @@ class BudgetCategoryEnvelopeTest < ActiveSupport::TestCase
     assert_equal 100, @budget_category.available_to_spend
   end
 
-  test "envelope_assigned reflects cumulative net funding, distinct from available_to_spend" do
+  test "envelope_assigned counts only this period's funding while the balance carries prior periods forward" do
+    @family.update!(envelope_activated_on: 2.months.ago.to_date)
+
+    # Assigned before this budget's period: rolls into the balance, but is not
+    # part of what was assigned this month.
+    @family.budget_allocations.create!(category: @category, amount: 500, currency: "USD", date: @budget.start_date - 1.day, kind: "fund")
+
     @family.budget_allocations.create!(category: @category, amount: 150, currency: "USD", date: Date.current, kind: "fund")
     @family.budget_allocations.create!(category: @category, amount: -50, currency: "USD", date: Date.current, kind: "sweep")
 
-    account = accounts(:depository)
     Entry.create!(
-      account: account,
+      account: accounts(:depository),
       entryable: Transaction.create!(category: @category),
       date: Date.current,
       name: "Spend",
@@ -55,7 +60,7 @@ class BudgetCategoryEnvelopeTest < ActiveSupport::TestCase
     @family.reset_envelope_caches!
 
     assert_equal 100, @budget_category.envelope_assigned
-    assert_equal 70, @budget_category.envelope_available_to_spend
+    assert_equal 570, @budget_category.envelope_available_to_spend
   end
 
   test "envelope_available_to_spend defaults to zero for an unfunded category" do

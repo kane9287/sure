@@ -2,23 +2,35 @@ class BudgetAllocationsController < ApplicationController
   before_action :set_budget
   before_action :require_envelope_mode
 
-  # Funds an envelope from the family's Unassigned pool (kind: "fund"), or
-  # sweeps money from an envelope back to Unassigned (kind: "sweep", negative
-  # amount). When from_category_id is present, atomically moves money
-  # between two envelopes (sweep source, fund destination) instead of
-  # touching the Unassigned pool -- the "move money from…" affordance for
-  # negative envelopes. See BudgetAllocation and
+  # Moves money into or out of an envelope. Every path lands in the same
+  # append-only BudgetAllocation ledger; only the arithmetic differs.
+  #
+  #   kind: "set"   -- absolute. Makes this period's assigned total equal
+  #                    :amount, posting only the difference: a fund when the
+  #                    envelope is under it, a sweep back to Unassigned when
+  #                    it's over. This is what the envelope row's amount box
+  #                    submits, so retyping the number already on screen is a
+  #                    no-op instead of doubling the envelope, and reducing an
+  #                    envelope mid-period is just typing a smaller number.
+  #   kind: "fund"  -- additive, Unassigned -> envelope.
+  #   kind: "sweep" -- additive, envelope -> Unassigned (stored negative).
+  #
+  # from_category_id takes precedence over kind and atomically moves :amount
+  # between two envelopes (sweep the source, fund the destination), leaving the
+  # Unassigned pool untouched. See BudgetAllocation and
   # Family#envelope_balances_by_category.
   def create
     category = Current.family.categories.find(allocation_params[:category_id])
     kind = allocation_params[:kind].presence || "fund"
     amount = allocation_params[:amount].to_d
-    amount = -amount.abs if kind == "sweep"
     from_category_id = allocation_params[:from_category_id].presence
 
     if from_category_id
       move_money(from_category_id: from_category_id, to_category: category, amount: amount.abs)
+    elsif kind == "set"
+      set_assigned(category: category, target: amount)
     else
+      amount = -amount.abs if kind == "sweep"
       fund_or_sweep(category: category, amount: amount, kind: kind)
     end
 
@@ -29,6 +41,19 @@ class BudgetAllocationsController < ApplicationController
   end
 
   private
+    # Posts the gap between what's already assigned to this envelope within
+    # @budget's period and the requested total. A zero delta posts nothing, so
+    # submitting an unchanged box leaves no ledger noise behind. A target below
+    # what's already assigned sweeps the difference back to Unassigned — the
+    # only "reduce" mechanism the UI needs.
+    def set_assigned(category:, target:)
+      already_assigned = (@budget.envelope_funded_this_period_by_category[category.id] || 0).to_d
+      delta = target - already_assigned
+      return if delta.zero?
+
+      fund_or_sweep(category: category, amount: delta, kind: delta.positive? ? "fund" : "sweep")
+    end
+
     def fund_or_sweep(category:, amount:, kind:)
       Current.family.budget_allocations.create!(
         category: category, amount: amount, currency: Current.family.currency, date: Date.current, kind: kind

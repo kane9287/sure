@@ -8,6 +8,13 @@
     </span>
   </div>
 
+  <%# Available is the rolling balance carried in from prior periods, so it
+      routinely differs from what was assigned this month — say so rather than
+      leaving the two numbers looking like they should reconcile. %>
+  <div class="whitespace-nowrap w-full sm:w-auto text-xs text-subdued">
+    <%= t(".rolls_over") %>
+  </div>
+
   <div class="whitespace-nowrap w-full sm:w-auto lg:ml-auto flex items-center gap-2">
     <% if budget_category.available_to_spend >= 0 %>
       <span class="text-sm text-secondary"><%= t(".available") %>:</span>
@@ -22,11 +29,3 @@
     <% end %>
   </div>
 </div>
-
-<% if budget_category.available_to_spend.negative? %>
-  <div class="mt-2" data-turbo="false">
-    <%= link_to t(".move_money"),
-        budget_budget_categories_path(budget_category.budget, anchor: dom_id(budget_category)),
-        class: "text-xs font-medium text-primary underline underline-offset-2" %>
-  </div>
-<% end %>

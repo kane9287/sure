@@ -142,11 +142,16 @@ class BudgetCategory < ApplicationRecord
     end
   end
 
-  # Cumulative net funding (BudgetAllocation fund - sweep) into this category
-  # since the family activated envelope mode — the "Assigned" figure on the
-  # envelope UI, distinct from the rolling available_to_spend balance.
+  # Net funding (BudgetAllocation fund - sweep) into this category during this
+  # budget's period — YNAB's "Assigned this month", and the figure the envelope
+  # row's amount box sets directly.
+  #
+  # Deliberately per-period rather than cumulative-since-activation: pairing a
+  # forever-growing "Assigned" with a rolling "Available" gave two numbers that
+  # never related to each other. Available still carries forward across periods
+  # (Family#envelope_balances_by_category), which is what makes rollover work.
   def envelope_assigned
-    budget.family.envelope_assigned_by_category[category_id] || 0
+    (budget.envelope_funded_this_period_by_category[category_id] || 0).to_d
   end
 
   def envelope_available_to_spend
