@@ -129,6 +129,12 @@ class Account::ProviderImportAdapter
           # "Claim" the unprotected duplicate by updating its external_id and source
           # This prevents future duplicate checks from matching it again
           entry = duplicate
+
+          # The provider writes below own name/amount/date/merchant, but not the
+          # category the user picked for this purchase. Pin it before the
+          # fall-through so `enrich_attribute(:category_id, ...)` declines it.
+          entry.preserve_manual_category!
+
           entry.assign_attributes(external_id: external_id, source: source)
         end
       end
@@ -187,6 +193,12 @@ class Account::ProviderImportAdapter
           old_pending_external_id = pending_match.external_id
           pending_entry_date      = pending_match.date
           entry = pending_match
+
+          # Someone who categorised the pending row keeps that category when the
+          # booked version lands. `lock_attr!` issues its own `update!`, so it
+          # runs before the in-memory `extra` assignment below rather than after.
+          entry.preserve_manual_category!
+
           entry.assign_attributes(external_id: external_id)
 
           # Clear the pending flag so this entry no longer shows as pending after being claimed
@@ -252,8 +264,12 @@ class Account::ProviderImportAdapter
         entry.transaction.enrich_attribute(:merchant_id, merchant.id, source: source)
       end
 
-      if notes.present? && entry.respond_to?(:enrich_attribute)
-        entry.enrich_attribute(:notes, notes, source: source)
+      if notes.present?
+        # `ignore_locks` is deliberate: the merged value contains the user's note
+        # verbatim, so the lock's purpose — never lose what the user wrote — is
+        # satisfied by construction rather than by refusing the write. On a new
+        # entry there is nothing to merge and the memo lands as-is.
+        entry.enrich_attribute(:notes, entry.notes_merged_with(notes), source: source, ignore_locks: true)
       end
 
       # Persist extra provider metadata on the transaction (non-enriched; always merged)
@@ -297,7 +313,13 @@ class Account::ProviderImportAdapter
           entry.transaction.assign_attributes(investment_activity_label: detected_label)
         end
 
-        if auto_kind.present?
+        # `assign_attributes` bypasses Enrichable, so the lock has to be checked by
+        # hand here the way the two branches around this one check `blank?`. Without
+        # it a sync reclassifies a user's `standard` transaction as a transfer kind,
+        # and `transfer?` rows render the transfer label instead of their category
+        # (_transaction.html.erb:198) and drop out of budget analytics — the category
+        # is still on the row, but the user sees it as uncategorized.
+        if auto_kind.present? && entry.transaction.enrichable?(:kind)
           entry.transaction.assign_attributes(kind: auto_kind)
         end
 

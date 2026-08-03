@@ -123,6 +123,10 @@ class TransactionReconciliation::Merger
         "manual_before" => self.class.manual_snapshot(manual_entry)
       )
 
+      # Read off the provider row before it goes away; approving a match must not
+      # discard the memo the auto-claim path would have kept.
+      provider_notes = provider_entry.notes
+
       # Destroy before claiming. The partial unique index on
       # (account_id, source, external_id) is checked per statement rather than
       # at commit, so the provider row has to release the identity before the
@@ -137,6 +141,7 @@ class TransactionReconciliation::Merger
         date: Date.parse(payload["date"])
       )
 
+      merge_notes(manual_entry, provider_notes)
       backfill_from_provider(manual_entry, provider_tx_attrs)
 
       reconciliation.update!(
@@ -176,6 +181,17 @@ class TransactionReconciliation::Merger
         "name" => entry.name,
         "merchant_id" => (entry.entryable.merchant_id if entry.transaction?)
       }
+    end
+
+    # Notes are the one field where neither side wins outright: the user's note
+    # and the bank's memo are concatenated, matching what a sync would do to a
+    # claimed row (`Account::ProviderImportAdapter#import_transaction`).
+    def merge_notes(manual_entry, provider_notes)
+      merged = manual_entry.notes_merged_with(provider_notes)
+      # Blank means neither side had anything to say.
+      return if merged.blank? || merged == manual_entry.notes
+
+      manual_entry.update!(notes: merged)
     end
 
     # The provider fills gaps, never overwrites. `enrich_attributes` consults

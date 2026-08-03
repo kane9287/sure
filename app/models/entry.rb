@@ -396,6 +396,11 @@ class Entry < ApplicationRecord
       # RecordNotUnique and fall through to creating an ordinary provider row.
       raise ActiveRecord::RecordNotUnique, "entry #{id} claimed concurrently" if self.external_id.present?
 
+      # Categories set outside a controller — CSV/QIF import, seeds, the
+      # assistant — never went through `lock_saved_attributes!`, so pin here
+      # instead of relying on how the row happened to be created.
+      preserve_manual_category!
+
       # Amount and date now belong to the provider, so release just those two
       # locks. Written as one update rather than update! + two unlock_attr!
       # calls so the row is touched once and can't be observed mid-claim.
@@ -410,6 +415,47 @@ class Entry < ApplicationRecord
     end
 
     true
+  end
+
+  # Pins the category a human already chose, so the provider writes that follow a
+  # claim can't replace it. A claim deliberately takes the provider's description,
+  # amount, date and merchant — that's what makes it a claim rather than a
+  # duplicate — but the category is the user's answer, not the bank's.
+  #
+  # A blank category is left unlocked on purpose: the provider, a rule or the
+  # auto-categorizer should still be free to fill one in.
+  #
+  # Deliberately an entryable-level lock. `protected_from_sync?` reads only
+  # excluded/user_modified/import_locked on the entry and never consults
+  # `Transaction#locked_attributes`, so this cannot push a row into the skip
+  # branch and re-create the duplicate the claim exists to prevent.
+  #
+  # @return [void]
+  def preserve_manual_category!
+    return unless transaction?
+    return if entryable.category_id.blank? || entryable.locked?(:category_id)
+
+    entryable.lock_attr!(:category_id)
+  end
+
+  # Combines the note a user wrote with the memo a provider sent, rather than
+  # letting either displace the other. Returns what `notes` should hold.
+  #
+  # Idempotent by inspection rather than by bookkeeping: a sync re-delivers the
+  # same memo every run, and `include?` is enough because the memo is appended
+  # verbatim.
+  #
+  # @param incoming [String, nil] the provider's memo
+  # @return [String] the merged notes
+  def notes_merged_with(incoming)
+    incoming = incoming.to_s.strip
+    existing = notes.to_s.strip
+
+    return existing if incoming.blank?
+    return incoming if existing.blank?
+    return existing if existing.include?(incoming)
+
+    "#{existing}\n\n#{incoming}"
   end
 
   # Whether a provider transaction is waiting on a human to say it's the same

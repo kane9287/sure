@@ -77,6 +77,67 @@ class TransactionReconciliationsControllerTest < ActionDispatch::IntegrationTest
     assert_equal "Chipotle", @manual.name
   end
 
+  # The gap-fill branch of Merger#backfill_from_provider only runs when the manual
+  # side is blank, so the test above never reached it and a `source:` the
+  # DataEnrichment enum did not accept went unnoticed until it 500'd in production.
+  test "confirm backfills a blank category from the provider" do
+    @provider.transaction.update!(category: categories(:food_and_drink))
+
+    post confirm_transaction_reconciliation_path(@reconciliation)
+
+    assert_redirected_to transaction_reconciliations_url
+    assert_equal categories(:food_and_drink), @manual.reload.transaction.category
+    assert_predicate @reconciliation.reload, :confirmed?
+  end
+
+  test "confirm records the backfill against the reconciliation source" do
+    @provider.transaction.update!(category: categories(:food_and_drink))
+
+    post confirm_transaction_reconciliation_path(@reconciliation)
+
+    enrichment = @manual.reload.transaction.data_enrichments.find_by(attribute_name: "category_id")
+    assert_equal "reconciliation", enrichment.source
+  end
+
+  # A category the user chose outranks anything the provider carries.
+  test "confirm never replaces a category the user already set" do
+    @manual.transaction.update!(category: categories(:food_and_drink))
+    @manual.transaction.lock_attr!(:category_id)
+    @provider.transaction.update!(category: categories(:income))
+
+    post confirm_transaction_reconciliation_path(@reconciliation)
+
+    assert_equal categories(:food_and_drink), @manual.reload.transaction.category
+  end
+
+  # Pinning happens during the claim, so a later sync of the same external_id
+  # can't undo what the human just approved.
+  test "confirm pins the surviving entry's category" do
+    @manual.transaction.update!(category: categories(:food_and_drink))
+
+    post confirm_transaction_reconciliation_path(@reconciliation)
+
+    assert @manual.reload.transaction.locked?(:category_id)
+  end
+
+  # Same rule as the auto-claim path: neither note wins outright.
+  test "confirm appends the provider's notes to the manual entry's" do
+    @manual.update!(notes: "split with Sam")
+    @provider.update!(notes: "CHIPOTLE 1234 PORTLAND OR")
+
+    post confirm_transaction_reconciliation_path(@reconciliation)
+
+    assert_equal "split with Sam\n\nCHIPOTLE 1234 PORTLAND OR", @manual.reload.notes
+  end
+
+  test "confirm adopts the provider's notes when the manual entry has none" do
+    @provider.update!(notes: "CHIPOTLE 1234 PORTLAND OR")
+
+    post confirm_transaction_reconciliation_path(@reconciliation)
+
+    assert_equal "CHIPOTLE 1234 PORTLAND OR", @manual.reload.notes
+  end
+
   test "confirm is a no-op on an already resolved pair" do
     @reconciliation.update!(status: :confirmed, resolved_at: Time.current)
 
