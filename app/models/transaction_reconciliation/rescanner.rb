@@ -47,6 +47,6 @@ class TransactionReconciliation::Rescanner
              .where.not(external_id: nil)
              .where(date: Account::ProviderImportAdapter::BACKFILL_MATCH_RECENCY_DAYS.days.ago..)
              .where.not(id: TransactionReconciliation.where.not(provider_entry_id: nil).select(:provider_entry_id))
-             .includes(:transaction)
+             .includes(:entryable)
     end
 end
