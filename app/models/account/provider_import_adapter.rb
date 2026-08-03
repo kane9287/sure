@@ -1,15 +1,43 @@
 class Account::ProviderImportAdapter
   # How far back the manual-capture matcher will look at incoming provider
-  # transactions. A historical backfill is all old dates, so it short-circuits
-  # before any query runs.
+  # transactions on a steady-state sync. Keeping this tight is a performance guard as
+  # much as a correctness one — it short-circuits before any query runs.
   MATCH_RECENCY_DAYS = 7
+
+  # ...except on an account's very first provider sync, which is exactly the case the
+  # narrow window gets wrong. Someone who tracked an account by hand for a month and
+  # then linked a provider gets the whole overlap back as duplicates: the exact-match
+  # claim below handles same-date/same-amount rows, but tips and date drift older than
+  # a week never reach the review queue.
+  #
+  # This is self-limiting by construction. The window is chosen per-adapter from whether
+  # the account has ever received provider data, so every sync after the first is back to
+  # MATCH_RECENCY_DAYS automatically — there is nothing to revert and no expiry job.
+  #
+  # Anchored to Entry::MANUAL_CAPTURE_ELIGIBILITY_DAYS because TransactionReconciliation
+  # draws its candidates from Entry.manual_capture. Note the two filter different columns
+  # (that one `created_at`, this one transaction `date`), so it's a defensible anchor
+  # rather than a hard ceiling.
+  BACKFILL_MATCH_RECENCY_DAYS = Entry::MANUAL_CAPTURE_ELIGIBILITY_DAYS
 
   attr_reader :account, :skipped_entries
 
   def initialize(account)
     @account = account
     @skipped_entries = []
+    # Snapshot before any row is processed. The exact-match claim in #import_transaction
+    # persists an external_id and returns early, so a lazily-memoized check would answer
+    # differently depending on which row happened to come first.
+    @match_recency_days = if account.entries.where.not(external_id: nil).exists?
+      MATCH_RECENCY_DAYS
+    else
+      BACKFILL_MATCH_RECENCY_DAYS
+    end
   end
+
+  # How far back this adapter will hand rows to the reconciler. Wide on an account's
+  # first provider sync, narrow forever after.
+  attr_reader :match_recency_days
 
   # Resets skipped entries tracking (call at start of new sync batch)
   def reset_skipped_entries!
@@ -114,7 +142,7 @@ class Account::ProviderImportAdapter
       # sync batch, and a leaked decision would attach the wrong pair.
       pending_review = nil
       if entry.new_record? && manual_reconciliation_enabled? &&
-         date.to_date >= Date.current - MATCH_RECENCY_DAYS
+         date.to_date >= Date.current - match_recency_days
         decision = TransactionReconciliation::Matcher.new(
           account: account,
           mode: account.family.manual_reconciliation_mode

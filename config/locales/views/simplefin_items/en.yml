@@ -52,10 +52,17 @@ en:
       account_type_loan_desc: Debt accounts
       account_type_other_asset: Other Asset
       account_type_other_asset_desc: Everything else
+      account_type_link_existing: Link to an existing account
+      account_type_link_existing_desc: Attach this to an account you've been tracking manually instead of creating a duplicate
+      link_existing_group: Link to an existing account
+      link_option: "%{name} · %{type} · %{balance}"
+      link_option_balance_match: "★ %{name} · %{type} · %{balance} — balance matches"
+      link_existing_hint: Linking keeps the history you've already entered. Overlapping transactions are matched automatically or queued for review.
       transaction_history_title: "Transaction History:"
       transaction_history_description_html: "SimpleFin typically provides <strong>60-90 days</strong> of transaction history, depending on your bank. After initial setup, new transactions will sync automatically going forward. Historical data availability varies by institution and account type."
       account_type_label: "Account Type:"
       create_accounts: Create Accounts
+      finish_setup: Finish Setup
       creating_accounts: Creating Accounts...
       cancel: Cancel
       account_card:
@@ -88,6 +95,13 @@ en:
       success:
         one: "Successfully created %{count} SimpleFIN account! Your transactions and holdings are being imported in the background."
         other: "Successfully created %{count} SimpleFIN accounts! Your transactions and holdings are being imported in the background."
+      linked:
+        one: "Linked %{count} SimpleFIN account to an existing account! Your existing history is kept and new transactions are importing in the background."
+        other: "Linked %{count} SimpleFIN accounts to existing accounts! Your existing history is kept and new transactions are importing in the background."
+      created_and_linked: "Created %{created} account(s) and linked %{linked} to existing accounts. Transactions and holdings are importing in the background."
+      setup_errors:
+        one: "Couldn't set up %{names}. Check logs for details."
+        other: "Couldn't set up these accounts: %{names}. Check logs for details."
       stale_accounts_processed: "Stale accounts: %{deleted} deleted, %{moved} moved."
       stale_accounts_errors:
         one: "%{count} stale account action failed. Check logs for details."
@@ -140,6 +154,7 @@ en:
         only_manual: Only manual accounts can be linked
         different_provider: This account is linked to a different provider. Unlink it from that provider first, then link to SimpleFIN.
         invalid_simplefin_account: Invalid SimpleFIN account selected
+        currency_mismatch: This account uses a different currency than the SimpleFIN account. Linking them would re-denominate your existing history.
     dismiss_replacement_suggestion:
       dismissed: Replacement suggestion dismissed
     replacement_prompt:

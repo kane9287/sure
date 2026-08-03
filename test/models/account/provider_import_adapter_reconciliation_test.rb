@@ -151,6 +151,59 @@ class Account::ProviderImportAdapterReconciliationTest < ActiveSupport::TestCase
     assert_equal "plaid_reconciliation_1", manual.reload.external_id
   end
 
+  # First-sync backfill window. Linking a provider to an account someone tracked by
+  # hand is the one case the 7-day gate gets wrong, so the window widens exactly once
+  # and narrows again on its own.
+
+  test "match_recency_days is wide on a first sync and narrow once provider data exists" do
+    assert_equal Account::ProviderImportAdapter::BACKFILL_MATCH_RECENCY_DAYS,
+      Account::ProviderImportAdapter.new(@account).match_recency_days
+
+    already_synced = create_manual_capture(amount: 5, date: 1.day.ago.to_date)
+    already_synced.update!(external_id: "plaid_previous", source: "plaid")
+
+    assert_equal Account::ProviderImportAdapter::MATCH_RECENCY_DAYS,
+      Account::ProviderImportAdapter.new(@account).match_recency_days
+  end
+
+  test "a first provider sync queues overlap older than the steady-state window" do
+    create_manual_capture(amount: 40, date: 20.days.ago.to_date, merchant: @merchant)
+    adapter = Account::ProviderImportAdapter.new(@account)
+
+    assert_difference "TransactionReconciliation.count", 1 do
+      import(amount: 47.20, date: 20.days.ago.to_date, adapter: adapter)
+    end
+  end
+
+  # The proof that this needs no manual revert: the same row that queued above is
+  # ignored on every subsequent sync, with no code change.
+  test "the narrow window returns on its own once the account has provider data" do
+    create_manual_capture(amount: 40, date: 20.days.ago.to_date, merchant: @merchant)
+    already_synced = create_manual_capture(amount: 5, date: 1.day.ago.to_date)
+    already_synced.update!(external_id: "plaid_previous", source: "plaid")
+
+    adapter = Account::ProviderImportAdapter.new(@account)
+
+    assert_no_difference "TransactionReconciliation.count" do
+      import(amount: 47.20, date: 20.days.ago.to_date, adapter: adapter)
+    end
+  end
+
+  # Lazy memoization would be ordering-dependent: the exact-match claim persists an
+  # external_id and returns early, so row 2 could answer differently than row 1.
+  test "the window is fixed at construction rather than re-evaluated per row" do
+    create_manual_capture(amount: 40, date: 20.days.ago.to_date, merchant: @merchant)
+    adapter = Account::ProviderImportAdapter.new(@account)
+
+    exact = create_manual_capture(amount: 12, date: Date.current, merchant: @merchant)
+    import(amount: 12, date: Date.current, external_id: "plaid_exact", adapter: adapter)
+    assert_equal "plaid_exact", exact.reload.external_id
+
+    assert_difference "TransactionReconciliation.count", 1 do
+      import(amount: 47.20, date: 20.days.ago.to_date, adapter: adapter)
+    end
+  end
+
   private
     def create_manual_capture(amount:, date:, merchant: nil)
       create_transaction(
@@ -163,8 +216,8 @@ class Account::ProviderImportAdapterReconciliationTest < ActiveSupport::TestCase
       )
     end
 
-    def import(amount:, date:, external_id: "plaid_reconciliation_1")
-      @adapter.import_transaction(
+    def import(amount:, date:, external_id: "plaid_reconciliation_1", adapter: nil)
+      (adapter || @adapter).import_transaction(
         external_id: external_id,
         amount: amount,
         currency: "USD",
