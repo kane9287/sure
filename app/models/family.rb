@@ -118,6 +118,7 @@ class Family < ApplicationRecord
   has_many :llm_usages, dependent: :destroy
   has_many :recurring_transactions, dependent: :destroy
   has_many :insights, dependent: :destroy
+  has_many :transaction_reconciliations, dependent: :destroy
 
   # Families with at least one opted-in member. Lets a job filter in one
   # indexed query rather than loading every family and asking each in Ruby.
@@ -142,6 +143,13 @@ class Family < ApplicationRecord
 
   BUDGET_MODES = %w[cap envelope].freeze
 
+  # Gates whether provider syncs try to reconcile against manual point-of-sale
+  # captures, and how far they may go without asking. Distinct from the preview
+  # flag, which is per-user and gates visibility: auto-merge mutates data the
+  # whole household shares, so one member opting into preview must not silently
+  # rewrite another member's entries.
+  MANUAL_RECONCILIATION_MODES = %w[off review_only auto].freeze
+
   validates :locale, inclusion: { in: I18n.available_locales.map(&:to_s) }
   validates :date_format, inclusion: { in: DATE_FORMATS.map(&:last) }
   validates :month_start_day, inclusion: { in: 1..28 }
@@ -149,6 +157,7 @@ class Family < ApplicationRecord
   validates :assistant_type, inclusion: { in: ASSISTANT_TYPES }
   validates :default_account_sharing, inclusion: { in: SHARING_DEFAULTS }
   validates :budget_mode, inclusion: { in: BUDGET_MODES }
+  validates :manual_reconciliation_mode, inclusion: { in: MANUAL_RECONCILIATION_MODES }
 
   before_validation :normalize_enabled_currencies!
   before_save :snapshot_envelope_activation!

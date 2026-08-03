@@ -1,4 +1,9 @@
 class Account::ProviderImportAdapter
+  # How far back the manual-capture matcher will look at incoming provider
+  # transactions. A historical backfill is all old dates, so it short-circuits
+  # before any query runs.
+  MATCH_RECENCY_DAYS = 7
+
   attr_reader :account, :skipped_entries
 
   def initialize(account)
@@ -98,6 +103,35 @@ class Account::ProviderImportAdapter
           entry = duplicate
           entry.assign_attributes(external_id: external_id, source: source)
         end
+      end
+
+      # The exact-match claim above only fires on identical date AND amount, so
+      # a real point-of-sale capture — entered at the register, before the tip
+      # and before the bank posted it — slips past it and becomes a duplicate.
+      # Look for one here, while the provider row still doesn't exist.
+      #
+      # A local rather than an ivar: the adapter is reused for every row in a
+      # sync batch, and a leaked decision would attach the wrong pair.
+      pending_review = nil
+      if entry.new_record? && manual_reconciliation_enabled? &&
+         date.to_date >= Date.current - MATCH_RECENCY_DAYS
+        decision = TransactionReconciliation::Matcher.new(
+          account: account,
+          mode: account.family.manual_reconciliation_mode
+        ).call(
+          external_id: external_id,
+          source: source,
+          amount: amount,
+          currency: currency,
+          date: date,
+          name: name,
+          merchant_id: merchant&.id
+        )
+
+        # Record only. The `:auto` outcome is unreachable until the family mode
+        # can be set to "auto", which lands with the claim-in-place branch —
+        # until then every match, however confident, goes to a human.
+        pending_review = decision if decision&.review?
       end
 
       if entry.new_record? && !incoming_pending
@@ -246,6 +280,21 @@ class Account::ProviderImportAdapter
 
       entry.save!
       entry.transaction.save! if entry.transaction.changed?
+
+      # Deferred until both sides are persisted, so the review card can point at
+      # real rows. A failure here must not take the sync down with it — the
+      # provider transaction itself imported fine.
+      if pending_review
+        begin
+          TransactionReconciliation::Merger.record_review!(
+            decision: pending_review,
+            provider_entry: entry,
+            family: account.family
+          )
+        rescue ActiveRecord::RecordInvalid => e
+          Rails.logger.warn("Failed to record reconciliation review for entry #{entry.id}: #{e.message}")
+        end
+      end
 
       # Auto-resolve any open Goal pledges on this account whose tolerance
       # window matches the posted transaction. Idempotent via the partial-unique
@@ -1024,6 +1073,25 @@ class Account::ProviderImportAdapter
       return @account_linked_to_any_goal if defined?(@account_linked_to_any_goal)
 
       @account_linked_to_any_goal = account.goal_accounts.exists?
+    end
+
+    # Memoized for the same reason as above: a 2k-row historical import must not
+    # pay a family lookup per row.
+    #
+    # Two gates doing different jobs. `manual_reconciliation_mode` is the
+    # family's standing answer to "may provider data be reconciled against our
+    # manual entries at all"; the preview rollup keeps the feature dark for
+    # families where nobody has opted in. Gating background work on the family
+    # rollup is the prescribed pattern (docs/llm-guides/gating-a-preview-feature.md)
+    # — it is only *UI* that must never be gated on it. The preview half goes
+    # away at GA; the mode column stays.
+    def manual_reconciliation_enabled?
+      return @manual_reconciliation_enabled if defined?(@manual_reconciliation_enabled)
+
+      family = account.family
+
+      @manual_reconciliation_enabled =
+        family.manual_reconciliation_mode != "off" && family.preview_features_enabled?
     end
 
     def clear_pending_flags_from_extra(extra)

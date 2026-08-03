@@ -514,6 +514,15 @@ Rails.application.routes.draw do
     end
   end
 
+  # Review queue for manual point-of-sale captures that a provider transaction
+  # may be a duplicate of. `undo` lands with auto-merge.
+  resources :transaction_reconciliations, only: %i[index] do
+    member do
+      post :confirm
+      post :reject
+    end
+  end
+
   resources :accountable_sparklines, only: :show, param: :accountable_type
 
   direct :entry do |entry, options|

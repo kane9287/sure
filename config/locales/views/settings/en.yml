@@ -208,6 +208,12 @@ en:
         budget_mode_cap: Cap (monthly targets)
         budget_mode_envelope: Envelope (rolling balances)
         budget_mode_unassigned_balance: "Unassigned: %{amount}"
+        reconciliation_title: Point-of-sale reconciliation
+        reconciliation_subtitle: What happens when a synced transaction looks like one you already entered yourself
+        manual_reconciliation_mode_label: Manual entry matching
+        manual_reconciliation_mode_hint: When your bank posts a transaction that matches one you entered at the register, we can flag the pair so you can merge them instead of ending up with a duplicate.
+        manual_reconciliation_mode_review_only: Ask me to confirm matches
+        manual_reconciliation_mode_off: "Off: never match"
         preview:
           title: Enable preview features
           description: Opt in to in-progress features tagged preview or canary.

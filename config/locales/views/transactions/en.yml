@@ -142,6 +142,8 @@ en:
       activity_type_tooltip: Investment activity type
       possible_duplicate: Duplicate?
       potential_duplicate_tooltip: This may be a duplicate of another transaction
+      reconciliation_pending: Match?
+      reconciliation_pending_tooltip: A synced transaction may be the same purchase as this one — review to merge them
       review_recommended: Review
       review_recommended_tooltip: Large amount difference — review recommended to check if this is a duplicate
       split: Split
