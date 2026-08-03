@@ -114,6 +114,21 @@ class TransactionReconciliation::ScorerTest < ActiveSupport::TestCase
     assert_predicate result, :auto?
   end
 
+  # Regression for a missed real-world pair: "payment" wasn't stripped as
+  # network noise, so "affirm - direct payment" kept a token "samsung affirm"
+  # didn't have, dropping the Dice coefficient below NAME_DICE_FLOOR and
+  # scoring the pair as an active mismatch instead of a partial match.
+  test "network-noise 'payment' is stripped so a partial merchant match still reaches review" do
+    [ 1, -1 ].each do |date_delta|
+      result = score(
+        side(amount: 40, date: BASE_DATE, name: "samsung affirm"),
+        side(amount: 40, date: BASE_DATE + date_delta, name: "affirm - direct payment")
+      )
+
+      assert_predicate result, :review?, "date_delta #{date_delta}: expected review, got #{result.decision} at #{result.score}"
+    end
+  end
+
   test "hard gates ignore pairs outside the envelope" do
     gate_cases = {
       "amount ratio above the ceiling" => [

@@ -71,7 +71,7 @@ class TransactionReconciliation::Scorer
 
   # Payment-processor and card-network noise that prefixes the real merchant.
   PROCESSOR_PREFIXES = /\A(sq|tst|py|pp|ppd|sp|tsl)\s*\*+\s*/i
-  NETWORK_NOISE      = /\b(pos|debit|credit|purchase|card|visa|mastercard|amex|authorization|auth|recurring)\b/i
+  NETWORK_NOISE      = /\b(pos|debit|credit|purchase|card|visa|mastercard|amex|authorization|auth|recurring|payment)\b/i
 
   # Shared with the fuzzy finders in Account::ProviderImportAdapter and
   # Entry — the first three tokens are what survives provider name churn.
