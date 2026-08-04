@@ -139,6 +139,20 @@ class BudgetCategoriesControllerTest < ActionDispatch::IntegrationTest
       "matched funds_movement inflow must not appear in Uncategorized drilldown"
   end
 
+  test "index syncs newly created categories into budget envelopes" do
+    new_category = Category.create!(
+      name: "Newly added controller test",
+      family: @family,
+      color: "#4da568",
+      lucide_icon: "house"
+    )
+
+    get budget_budget_categories_path(@budget)
+
+    assert_response :success
+    assert @budget.budget_categories.exists?(category: new_category)
+  end
+
   test "show drilldown still lists loan_payment transfers (intentionally budget-tracked)" do
     # loan_payment is NOT in BUDGET_EXCLUDED_KINDS. The drilldown should
     # keep showing loan_payment transfers so the user can see what's
