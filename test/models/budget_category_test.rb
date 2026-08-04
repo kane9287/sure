@@ -170,7 +170,7 @@ class BudgetCategoryTest < ActiveSupport::TestCase
     assert_equal 50, @subcategory_inheriting_bc.reload.budgeted_spending
   end
 
-  test "budgeted? returns true only when display_budgeted_spending > 0" do
+  test "budgeted? in cap mode returns true only when display_budgeted_spending > 0" do
     @subcategory_with_limit_bc.stubs(:display_budgeted_spending).returns(100)
     assert @subcategory_with_limit_bc.budgeted?
 
@@ -178,6 +178,30 @@ class BudgetCategoryTest < ActiveSupport::TestCase
     refute @subcategory_with_limit_bc.budgeted?
 
     @subcategory_with_limit_bc.stubs(:display_budgeted_spending).returns(nil)
+    refute @subcategory_with_limit_bc.budgeted?
+  end
+
+  test "budgeted? in envelope mode is true when assigned this period, even with nothing available" do
+    @family.stubs(:envelope_mode?).returns(true)
+    @subcategory_with_limit_bc.stubs(:envelope_assigned).returns(450.to_d)
+    @subcategory_with_limit_bc.stubs(:available_to_spend).returns(0.to_d)
+
+    assert @subcategory_with_limit_bc.budgeted?
+  end
+
+  test "budgeted? in envelope mode is true on a positive carried-forward balance with nothing assigned this period" do
+    @family.stubs(:envelope_mode?).returns(true)
+    @subcategory_with_limit_bc.stubs(:envelope_assigned).returns(0.to_d)
+    @subcategory_with_limit_bc.stubs(:available_to_spend).returns(75.to_d)
+
+    assert @subcategory_with_limit_bc.budgeted?
+  end
+
+  test "budgeted? in envelope mode is false when nothing assigned this period and nothing available" do
+    @family.stubs(:envelope_mode?).returns(true)
+    @subcategory_with_limit_bc.stubs(:envelope_assigned).returns(0.to_d)
+    @subcategory_with_limit_bc.stubs(:available_to_spend).returns(0.to_d)
+
     refute @subcategory_with_limit_bc.budgeted?
   end
 

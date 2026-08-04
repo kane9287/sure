@@ -89,6 +89,17 @@ class BudgetAllocationsControllerTest < ActionDispatch::IntegrationTest
     assert_redirected_to budget_budget_categories_path(@budget)
   end
 
+  test "funding an envelope through the controller makes the category budgeted?" do
+    budget_category = BudgetCategory.create!(budget: @budget, category: @category, currency: @family.currency)
+    refute BudgetCategory.find(budget_category.id).budgeted?
+
+    post_allocation(kind: "fund", amount: "450")
+
+    # budgeted? reads through memoized envelope math on budget/family, so a
+    # freshly loaded instance is needed to see the just-posted allocation.
+    assert BudgetCategory.find(budget_category.id).budgeted?
+  end
+
   private
     def post_allocation(kind:, amount:, category: @category)
       post budget_budget_allocations_path(@budget), params: {

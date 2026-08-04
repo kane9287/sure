@@ -185,8 +185,17 @@ class BudgetCategory < ApplicationRecord
     available_to_spend.negative?
   end
 
+  # In envelope mode, "budgeted" means the envelope has money working for it
+  # right now — either freshly assigned this period, or a positive balance
+  # carried forward from a prior period. The latter matters for envelopes
+  # funded ahead of an irregular ("fuzzy") bill: they may go a period with no
+  # new assignment yet still hold money and belong on the On Track list.
   def budgeted?
-    display_budgeted_spending.to_d.positive?
+    if budget.family.envelope_mode?
+      envelope_assigned.to_d.positive? || available_to_spend.to_d.positive?
+    else
+      display_budgeted_spending.to_d.positive?
+    end
   end
 
   def unbudgeted_with_spending?
