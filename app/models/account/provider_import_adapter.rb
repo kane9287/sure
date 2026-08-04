@@ -119,23 +119,30 @@ class Account::ProviderImportAdapter
       if entry.new_record?
         duplicate = find_duplicate_transaction(date: date, amount: amount, currency: currency)
         if duplicate
-          # Check if duplicate is protected - if so, link but don't modify
           if duplicate.protected_from_sync?
-            duplicate.update!(external_id: external_id, source: source)
+            # Do NOT claim a protected entry's identity here. Stamping external_id/source
+            # via a raw update (as this used to do) never clears user_modified and never
+            # writes provider extra data, so the entry ends up permanently indistinguishable
+            # from a real synced row in the UI (still shows "protected") while being silently
+            # dropped from Entry.manual_capture forever — invisible to every future duplicate
+            # check, the reconciliation Matcher, and manual match/merge tools alike, with no
+            # trace beyond this in-memory skip. Leave it untouched instead: the incoming
+            # transaction becomes its own entry below, and if manual reconciliation is enabled,
+            # the Matcher block further down gets a fair, auditable shot at proposing a
+            # human-reviewed match between the two.
             record_skip(duplicate, determine_skip_reason(duplicate) || "protected")
-            return duplicate
+          else
+            # "Claim" the unprotected duplicate by updating its external_id and source
+            # This prevents future duplicate checks from matching it again
+            entry = duplicate
+
+            # The provider writes below own name/amount/date/merchant, but not the
+            # category the user picked for this purchase. Pin it before the
+            # fall-through so `enrich_attribute(:category_id, ...)` declines it.
+            entry.preserve_manual_category!
+
+            entry.assign_attributes(external_id: external_id, source: source)
           end
-
-          # "Claim" the unprotected duplicate by updating its external_id and source
-          # This prevents future duplicate checks from matching it again
-          entry = duplicate
-
-          # The provider writes below own name/amount/date/merchant, but not the
-          # category the user picked for this purchase. Pin it before the
-          # fall-through so `enrich_attribute(:category_id, ...)` declines it.
-          entry.preserve_manual_category!
-
-          entry.assign_attributes(external_id: external_id, source: source)
         end
       end
 

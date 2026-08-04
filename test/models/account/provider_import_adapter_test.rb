@@ -235,6 +235,33 @@ class Account::ProviderImportAdapterTest < ActiveSupport::TestCase
     assert_not_predicate manual.reload, :protected_from_sync?
   end
 
+  # Regression guard: a protected duplicate used to be silently stamped with the
+  # incoming external_id/source via a raw update, which never cleared
+  # user_modified and never wrote provider extra data — leaving it forever
+  # indistinguishable from a real synced row (still "protected" in the UI) while
+  # being permanently dropped from Entry.manual_capture, invisible to every
+  # future duplicate check, the reconciliation Matcher, and manual match tools.
+  test "does not claim a protected duplicate's identity" do
+    manual = create_manual_entry(name: "Interest Charge", amount: 2.84, category: categories(:food_and_drink))
+    manual.mark_user_modified!
+
+    assert_difference "@account.entries.count", 1 do
+      @adapter.import_transaction(
+        external_id: "simplefin_protected_dup",
+        amount: 2.84,
+        currency: "USD",
+        date: manual.date,
+        name: "Interest Charge - INTEREST CHARGE ON PURCHASES",
+        source: "simplefin"
+      )
+    end
+
+    manual.reload
+    assert_nil manual.external_id
+    assert_nil manual.source
+    assert_predicate manual, :protected_from_sync?
+  end
+
   test "updates existing transaction instead of creating duplicate" do
     # Create initial transaction
     entry = @adapter.import_transaction(
