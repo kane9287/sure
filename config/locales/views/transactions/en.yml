@@ -1,6 +1,13 @@
 ---
 en:
   transactions:
+    bulk_matches:
+      create:
+        invalid_selection: Select exactly 2 transactions to match.
+        ambiguous_pair: Select one manually entered transaction and one synced transaction to match.
+        cross_account: Matched transactions must be in the same account.
+        success: Transactions matched.
+        failure: We couldn't match those transactions. Please try again.
     bulk_updates:
       new:
         cancel: Cancel
@@ -23,6 +30,10 @@ en:
     selection_bar:
       duplicate: Duplicate
       edit: Edit
+      match: Match
+      match_confirm_title: Match transactions?
+      match_confirm_body: This will merge the two selected transactions into one. This is not reversible.
+      match_confirm_button: Match Transactions
       selected: selected
     form:
       details: Details
