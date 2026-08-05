@@ -1,8 +1,10 @@
 <%# locals: (budget_category:, budget:) %>
 
 <%# The built-in Debt Payment envelope. Unlike every other row there's no
-    "set assigned to X" box: the reserve is derived from card activity, so the
-    only meaningful action is topping up what isn't covered yet. %>
+    "set assigned to X" box: the reserve for new card spending is derived from
+    card activity, so the only meaningful action is adding to it. Nothing here
+    is required — debt carried in from before envelope mode is retired through
+    the payoff plan at whatever pace cash flow allows. %>
 <% debt_reserve = Family::DebtReserve.new(budget.family) %>
 
 <div id="<%= dom_id(budget_category, :envelope_row) %>" class="w-full flex gap-3 py-3 items-start bg-container-inset rounded-lg px-3">
@@ -38,39 +40,47 @@
             </li>
           <% end %>
         </ul>
+
+        <p class="text-xs text-subdued mt-2"><%= t(".carried_debt_hint") %></p>
       </details>
     <% end %>
   </div>
 
   <div class="ml-auto flex-shrink-0 w-[130px]">
-    <% if debt_reserve.fully_reserved? %>
-      <p class="text-xs text-right">
-        <span class="inline-flex items-center rounded-full px-2 py-0.5 font-medium bg-success/10 text-success whitespace-nowrap">
-          <%= t(".fully_reserved") %>
-        </span>
-      </p>
-    <% else %>
-      <%# Debt carried in before envelope mode was switched on has no reserve
-          behind it, so it has to be funded like any other envelope. %>
-      <%= form_with url: budget_budget_allocations_path(budget), method: :post, data: { turbo: false } do |f| %>
-        <%= f.hidden_field "budget_allocation[category_id]", value: budget_category.category_id, id: dom_id(budget_category, :envelope_debt_category) %>
-        <%= f.hidden_field "budget_allocation[kind]", value: "fund", id: dom_id(budget_category, :envelope_debt_kind) %>
-        <label class="block text-xs text-warning mb-1 text-right" for="<%= dom_id(budget_category, :envelope_debt_amount) %>">
-          <%= t(".unreserved", amount: format_money(debt_reserve.unreserved_money)) %>
-        </label>
-        <div class="form-field">
-          <div class="flex items-center privacy-sensitive privacy-sensitive-interactive">
-            <span class="text-secondary text-sm mr-2"><%= Money::Currency.new(budget.currency).symbol %></span>
-            <%= f.text_field "budget_allocation[amount]",
-                  id: dom_id(budget_category, :envelope_debt_amount),
-                  value: debt_reserve.unreserved_prefill,
-                  class: "form-field__input text-right",
-                  placeholder: "0.00" %>
-          </div>
+    <%= form_with url: budget_budget_allocations_path(budget), method: :post, data: { turbo: false } do |f| %>
+      <%= f.hidden_field "budget_allocation[category_id]", value: budget_category.category_id, id: dom_id(budget_category, :envelope_debt_category) %>
+      <%= f.hidden_field "budget_allocation[kind]", value: "fund", id: dom_id(budget_category, :envelope_debt_kind) %>
+
+      <%# Amber is reserved for the shortfall: cash that already left for a card
+          payment nothing was assigned against. A plan minimum is just a
+          suggestion, so it stays neutral. %>
+      <label class="block text-xs mb-1 text-right <%= debt_reserve.shortfall? ? "text-warning" : "text-secondary" %>"
+             for="<%= dom_id(budget_category, :envelope_debt_amount) %>">
+        <% if debt_reserve.shortfall? %>
+          <%= t(".shortfall", amount: format_money(debt_reserve.shortfall_money)) %>
+        <% elsif debt_reserve.suggested_payment? %>
+          <%= t(".plan_minimum", amount: format_money(debt_reserve.suggested_payment_money)) %>
+        <% else %>
+          <%= t(".assign_label") %>
+        <% end %>
+      </label>
+
+      <div class="form-field">
+        <div class="flex items-center privacy-sensitive privacy-sensitive-interactive">
+          <span class="text-secondary text-sm mr-2"><%= Money::Currency.new(budget.currency).symbol %></span>
+          <%= f.text_field "budget_allocation[amount]",
+                id: dom_id(budget_category, :envelope_debt_amount),
+                value: debt_reserve.prefill,
+                class: "form-field__input text-right",
+                placeholder: "0.00" %>
         </div>
-        <%= render DS::Button.new(text: t(".reserve_action"), type: :submit, variant: "secondary", size: "sm", full_width: true, class: "mt-2") %>
-      <% end %>
-      <p class="text-xs text-secondary mt-1 text-right"><%= t(".unreserved_hint") %></p>
+      </div>
+
+      <%= render DS::Button.new(text: t(".assign_action"), type: :submit, variant: "secondary", size: "sm", full_width: true, class: "mt-2") %>
     <% end %>
+
+    <p class="text-xs text-secondary mt-1 text-right">
+      <%= debt_reserve.shortfall? ? t(".shortfall_hint") : t(".assign_hint") %>
+    </p>
   </div>
 </div>
