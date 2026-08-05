@@ -34,7 +34,6 @@
                 <li><strong><%= t(".account_type_investment") %></strong> - <%= t(".account_type_investment_desc") %></li>
                 <li><strong><%= t(".account_type_loan") %></strong> - <%= t(".account_type_loan_desc") %></li>
                 <li><strong><%= t(".account_type_other_asset") %></strong> - <%= t(".account_type_other_asset_desc") %></li>
-                <li><strong><%= t(".account_type_link_existing") %></strong> - <%= t(".account_type_link_existing_desc") %></li>
               </ul>
             </div>
           </div>
@@ -65,16 +64,8 @@
           <% likely_closed = activity.last_transacted_at.present? && activity.dormant? && near_zero_balance %>
           <%# Default likely-closed accounts (dormant AND near-zero balance) to "skip" so
              users don't accidentally create empty Sure accounts for closed/replaced cards. %>
-          <% link_options = @link_options_map[simplefin_account.id] || [] %>
-          <%# A manual account whose balance already agrees to the cent is almost
-             certainly the same account the user has been tracking by hand, so offer
-             the link rather than a duplicate. Preselecting only fills the dropdown —
-             the user still has to submit. %>
-          <% preselected_link = @preselected_link_map&.dig(simplefin_account.id) %>
           <% selected_type = if likely_closed
             "skip"
-          elsif preselected_link.present?
-            preselected_link
           else
             inferred[:confidence] == :high ? inferred[:type] : "skip"
           end %>
@@ -109,20 +100,12 @@
               <div>
                 <%= label_tag "account_types[#{simplefin_account.id}]", t(".account_type_label"),
                              class: "block text-sm font-medium text-primary mb-2" %>
-                <%# Create / Link / Skip live in one select so they stay mutually
-                   exclusive. account_type_selector matches on [data-type="<value>"],
-                   which a "link:<uuid>" value never hits, so the subtype select stays
-                   hidden and un-named by construction — no JS change needed. %>
                 <%= select_tag "account_types[#{simplefin_account.id}]",
-                              options_for_select(@account_type_options, selected_type) +
-                                (link_options.any? ? grouped_options_for_select({ t(".link_existing_group") => link_options }, selected_type) : "".html_safe),
+                              options_for_select(@account_type_options, selected_type),
                               { class: "appearance-none bg-container border border-primary rounded-md px-3 py-2 text-sm leading-6 text-primary focus:border-primary focus:ring-1 focus:ring-primary focus:outline-none w-full",
                                 data: {
                                   action: "change->account-type-selector#updateSubtype"
                                 } } %>
-                <% if link_options.any? %>
-                  <p class="text-xs text-secondary mt-2"><%= t(".link_existing_hint") %></p>
-                <% end %>
               </div>
 
               <!-- Subtype dropdowns (shown/hidden based on account type) -->
@@ -160,11 +143,10 @@
       </div>
 
       <div class="flex gap-3">
-        <%# Neutral label: a submission may now link rather than create anything. %>
         <%= render DS::Button.new(
-          text: t(".finish_setup"),
+          text: t(".create_accounts"),
           variant: "primary",
-          icon: "check",
+          icon: "plus",
           type: "submit",
           class: "flex-1",
           data: { loading_button_target: "button" }

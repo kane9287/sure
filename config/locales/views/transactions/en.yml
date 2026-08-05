@@ -1,13 +1,6 @@
 ---
 en:
   transactions:
-    bulk_matches:
-      create:
-        invalid_selection: Select exactly 2 transactions to match.
-        ambiguous_pair: Select one manually entered transaction and one synced transaction to match.
-        cross_account: Matched transactions must be in the same account.
-        success: Transactions matched.
-        failure: We couldn't match those transactions. Please try again.
     bulk_updates:
       new:
         cancel: Cancel
@@ -30,10 +23,6 @@ en:
     selection_bar:
       duplicate: Duplicate
       edit: Edit
-      match: Match
-      match_confirm_title: Match transactions?
-      match_confirm_body: This will merge the two selected transactions into one. This is not reversible.
-      match_confirm_button: Match Transactions
       selected: selected
     form:
       details: Details
@@ -153,8 +142,6 @@ en:
       activity_type_tooltip: Investment activity type
       possible_duplicate: Duplicate?
       potential_duplicate_tooltip: This may be a duplicate of another transaction
-      reconciliation_pending: Match?
-      reconciliation_pending_tooltip: A synced transaction may be the same purchase as this one — review to merge them
       review_recommended: Review
       review_recommended_tooltip: Large amount difference — review recommended to check if this is a duplicate
       split: Split

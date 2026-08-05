@@ -462,7 +462,6 @@ Rails.application.routes.draw do
   namespace :transactions do
     resource :bulk_deletion, only: :create
     resource :bulk_update, only: %i[new create]
-    resource :bulk_match, only: :create
     resource :categorize, only: %i[show create] do
       patch :assign_entry, on: :collection
       get :preview_rule, on: :collection
@@ -515,15 +514,6 @@ Rails.application.routes.draw do
     end
   end
 
-  # Review queue for manual point-of-sale captures that a provider transaction
-  # may be a duplicate of. `undo` lands with auto-merge.
-  resources :transaction_reconciliations, only: %i[index] do
-    member do
-      post :confirm
-      post :reject
-    end
-  end
-
   resources :accountable_sparklines, only: :show, param: :accountable_type
 
   direct :entry do |entry, options|
@@ -551,7 +541,6 @@ Rails.application.routes.draw do
   resources :accounts, only: %i[index new show destroy], shallow: true do
     member do
       post :sync
-      post :rescan_reconciliation
       get :sparkline
       patch :toggle_active
       patch :toggle_exclude_from_reports

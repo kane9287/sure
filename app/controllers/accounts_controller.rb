@@ -2,8 +2,7 @@ class AccountsController < ApplicationController
   include StreamExtensions
 
   before_action :set_account, only: %i[show sparkline sync set_default remove_default]
-  before_action :set_manageable_account, only: %i[toggle_active toggle_exclude_from_reports destroy unlink confirm_unlink select_provider rescan_reconciliation]
-  before_action :require_preview_features!, only: %i[rescan_reconciliation]
+  before_action :set_manageable_account, only: %i[toggle_active toggle_exclude_from_reports destroy unlink confirm_unlink select_provider]
   include Periodable
 
   def index
@@ -123,21 +122,6 @@ class AccountsController < ApplicationController
     end
 
     redirect_to account_path(@account)
-  end
-
-  def rescan_reconciliation
-    if @account.family.manual_reconciliation_mode == "off"
-      redirect_to account_path(@account), alert: t(".off")
-      return
-    end
-
-    count = TransactionReconciliation::Rescanner.call(@account)
-
-    if count.positive?
-      redirect_to account_path(@account), notice: t(".found", count: count)
-    else
-      redirect_to account_path(@account), notice: t(".none")
-    end
   end
 
   def sparkline

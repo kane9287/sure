@@ -1,6 +1,5 @@
 class SimplefinAccount < ApplicationRecord
   include Encryptable
-  include Linking
 
   # Encrypt raw payloads if ActiveRecord encryption is configured
   if encryption_ready?

@@ -124,7 +124,6 @@ en:
         import_trades: Import trades
         import_transactions: Import transactions
         manage: Manage accounts
-        rescan_reconciliation: Rescan for matches
         sharing: Sharing
         statements: Statements
         exclude_from_reports: Exclude from all reports
@@ -200,12 +199,6 @@ en:
       description: "Choose which provider you want to use to link %{account_name}"
       already_linked: "Account is already linked to a provider"
       no_providers: "No providers are currently configured"
-    rescan_reconciliation:
-      off: "Automatic reconciliation is turned off for this household."
-      found:
-        one: "Found 1 new match to review."
-        other: "Found %{count} new matches to review."
-      none: "No new matches found."
 
   email_confirmations:
     new:

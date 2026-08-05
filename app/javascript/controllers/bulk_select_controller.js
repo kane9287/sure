@@ -9,7 +9,6 @@ export default class extends Controller {
     "selectionBarText",
     "bulkEditDrawerHeader",
     "duplicateLink",
-    "matchLink",
   ];
   static values = {
     singularLabel: String,
@@ -156,16 +155,6 @@ export default class extends Controller {
         this.duplicateLinkTarget.href = url.toString();
       }
     }
-
-    if (this.hasMatchLinkTarget) {
-      const canMatch =
-        count === 2 &&
-        this._selectedRows().every(
-          (row) => row.dataset.entryType === "Transaction",
-        );
-
-      this.matchLinkTarget.classList.toggle("hidden", !canMatch);
-    }
   }
 
   _pluralizedResourceName() {
@@ -179,12 +168,8 @@ export default class extends Controller {
   _selectedRow() {
     if (this.selectedIdsValue.length !== 1) return null;
 
-    return this._selectedRows()[0] ?? null;
-  }
-
-  _selectedRows() {
-    return this.rowTargets.filter((row) =>
-      this.selectedIdsValue.includes(row.dataset.id),
+    return this.rowTargets.find(
+      (row) => row.dataset.id === this.selectedIdsValue[0],
     );
   }
 

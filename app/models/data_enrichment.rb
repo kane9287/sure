@@ -18,10 +18,6 @@ class DataEnrichment < ApplicationRecord
     sophtron: "sophtron",
     ibkr: "ibkr",
     questrade: "questrade",
-    redbark: "redbark",
-    # Not a provider: TransactionReconciliation::Merger attributes gap-filling
-    # backfills to the merge itself, so the audit trail distinguishes "the user
-    # approved a match" from "a provider sync wrote this".
-    reconciliation: "reconciliation"
+    redbark: "redbark"
   }
 end
