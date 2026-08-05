@@ -126,7 +126,7 @@ class FamilyEnvelopeDebtTest < ActiveSupport::TestCase
     end
 
     assert_equal debt_before - 300, balance(@debt)
-    assert_equal 0, Family::DebtReserve.new(@family).shortfall_money.amount
+    assert_equal 0, @family.debt_reserve.amount
   end
 
   test "paying down carried-in debt without assigning first shows as a shortfall" do
@@ -140,13 +140,13 @@ class FamilyEnvelopeDebtTest < ActiveSupport::TestCase
     # Same mechanics as any other overspend — the cash is gone, so the envelope
     # is short until it's covered, and the pool only moves when the user assigns.
     assert_equal debt_before - 500, balance(@debt)
-    assert_equal 500, Family::DebtReserve.new(@family).shortfall_money.amount
+    assert_equal(-500, @family.debt_reserve.amount)
 
     assert_difference -> { @family.reset_envelope_caches!; @family.unassigned_pool_balance.amount }, -500 do
       fund!(@debt, 500)
     end
 
-    assert_equal 0, Family::DebtReserve.new(@family).shortfall_money.amount
+    assert_equal 0, @family.debt_reserve.amount
   end
 
   test "a loan payment expenses its envelope without touching the debt reserve" do
