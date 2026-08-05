@@ -1,7 +1,12 @@
 # View-model for the built-in Debt Payment envelope on the envelope budget
-# screen. Keeps the per-account breakdown and the reserved/unreserved
-# arithmetic out of the template — the row is the only place any of it is
-# needed, so it lives here rather than in Family.
+# screen. Keeps the per-account breakdown and the reserved/shortfall arithmetic
+# out of the template — the row is the only place any of it is needed, so it
+# lives here rather than in Family.
+#
+# Scope note: this envelope is responsible for card spending done *since*
+# envelope mode was switched on, nothing more. Debt carried in before that is
+# deliberately outside the envelope system — it's retired through DebtPlan at a
+# pace the family chooses, so nothing here ever asks them to reserve it.
 class Family::DebtReserve
   Line = Data.define(:account, :balance_money)
 
@@ -11,12 +16,48 @@ class Family::DebtReserve
     @family = family
   end
 
-  def reserved_money
-    @reserved_money ||= family.debt_reserve
+  # The envelope's raw balance: funded + new card spending - payments. Negative
+  # when payments have gone out that nothing was assigned for.
+  def balance_money
+    @balance_money ||= family.debt_reserve
   end
 
-  def unreserved_money
-    @unreserved_money ||= family.unreserved_debt_balance
+  def reserved_money
+    Money.new([ balance_money.amount, 0 ].max, currency)
+  end
+
+  # Card payments already made with no assignment behind them. Unlike a debt
+  # balance this is small, monthly and actionable: the cash is gone, so
+  # Unassigned overstates what's available until it's covered.
+  def shortfall_money
+    Money.new([ -balance_money.amount, 0 ].max, currency)
+  end
+
+  def shortfall?
+    shortfall_money.positive?
+  end
+
+  # What the family's payoff plans say this month's card minimums come to — the
+  # natural amount to assign here, offered as a suggestion and never enforced.
+  #
+  # Loans are excluded even when a plan covers them: loan_payment is already
+  # expensed by IncomeStatement::Totals, so a loan reconciles through its own
+  # spending envelope and counting it here would fund it twice.
+  def suggested_payment_money
+    @suggested_payment_money ||= Money.new(suggested_payment_amount, currency)
+  end
+
+  def suggested_payment?
+    suggested_payment_money.positive?
+  end
+
+  # Prefill for the assign box: clear the shortfall first if there is one,
+  # otherwise offer this month's minimums. Blank when we'd be guessing.
+  def prefill
+    amount = shortfall? ? shortfall_money.amount : suggested_payment_money.amount
+    return "" unless amount.positive?
+
+    sprintf("%.2f", amount)
   end
 
   def total_debt_money
@@ -43,17 +84,19 @@ class Family::DebtReserve
     lines.any?
   end
 
-  def fully_reserved?
-    !unreserved_money.positive?
-  end
-
-  # Prefill for the "reserve it now" form: the shortfall, rounded to cents.
-  def unreserved_prefill
-    sprintf("%.2f", unreserved_money.amount)
-  end
-
   private
     def currency
       family.primary_currency_code
+    end
+
+    def suggested_payment_amount
+      revolving = IncomeStatement::LiabilityReserve::REVOLVING_TYPES
+
+      family.debt_plans
+            .where(currency: currency)
+            .flat_map(&:debts)
+            .select { |debt| revolving.include?(debt.account&.accountable_type) }
+            .uniq(&:key) # an account may be linked to more than one plan
+            .sum(0.to_d) { |debt| [ debt.minimum_amount, debt.balance ].min }
     end
 end

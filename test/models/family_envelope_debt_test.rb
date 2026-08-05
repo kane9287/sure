@@ -97,20 +97,39 @@ class FamilyEnvelopeDebtTest < ActiveSupport::TestCase
     end
   end
 
-  test "debt carried in at activation is not auto-funded" do
+  test "debt carried in at activation stays out of the envelope system" do
     reserve_before = @family.debt_reserve.amount
-    unreserved_before = @family.unreserved_debt_balance.amount
 
     # A balance that predates activation arrives as a balance change, not as
-    # transactions in the period, so nothing enters the reserve.
+    # transactions in the period, so nothing enters the reserve. Carried-in debt
+    # is retired through DebtPlan, not by reserving cash the family may not have.
     @card.update!(balance: @card.balance + 500)
     @family.reset_envelope_caches!
 
     assert_equal reserve_before, @family.debt_reserve.amount
-    assert_equal unreserved_before + 500, @family.unreserved_debt_balance.amount
   end
 
-  test "paying pre-activation debt overspends the debt envelope rather than moving the pool" do
+  test "assigning for a card payment before making it leaves the envelope square" do
+    @card.update!(balance: @card.balance + 500)
+
+    # The intended workflow: budget this month's payment, then make it. The
+    # assignment costs the pool, the payment doesn't, and the envelope lands
+    # back where it started.
+    assert_difference -> { @family.reset_envelope_caches!; @family.unassigned_pool_balance.amount }, -300 do
+      fund!(@debt, 300)
+    end
+
+    debt_before = balance(@debt)
+
+    assert_pool_unchanged do
+      pay!(300, to: @card)
+    end
+
+    assert_equal debt_before - 300, balance(@debt)
+    assert_equal 0, Family::DebtReserve.new(@family).shortfall_money.amount
+  end
+
+  test "paying down carried-in debt without assigning first shows as a shortfall" do
     @card.update!(balance: @card.balance + 500)
     debt_before = balance(@debt)
 
@@ -118,32 +137,16 @@ class FamilyEnvelopeDebtTest < ActiveSupport::TestCase
       pay!(500, to: @card)
     end
 
-    # Same mechanics as any other overspend: the envelope goes red until the
-    # user assigns to it, and the pool only moves when they do.
+    # Same mechanics as any other overspend — the cash is gone, so the envelope
+    # is short until it's covered, and the pool only moves when the user assigns.
     assert_equal debt_before - 500, balance(@debt)
+    assert_equal 500, Family::DebtReserve.new(@family).shortfall_money.amount
 
     assert_difference -> { @family.reset_envelope_caches!; @family.unassigned_pool_balance.amount }, -500 do
       fund!(@debt, 500)
     end
-  end
 
-  test "assigning to the debt envelope clears the unreserved warning" do
-    @card.update!(balance: @card.balance + 500)
-    @family.reset_envelope_caches!
-    unreserved = @family.unreserved_debt_balance.amount
-    assert_operator unreserved, :>, 0
-
-    fund!(@debt, unreserved)
-    @family.reset_envelope_caches!
-
-    assert_equal 0, @family.unreserved_debt_balance.amount
-  end
-
-  test "unreserved_debt_balance never goes negative" do
-    fund!(@debt, 100_000)
-    @family.reset_envelope_caches!
-
-    assert_equal 0, @family.unreserved_debt_balance.amount
+    assert_equal 0, Family::DebtReserve.new(@family).shortfall_money.amount
   end
 
   test "a loan payment expenses its envelope without touching the debt reserve" do
@@ -157,11 +160,10 @@ class FamilyEnvelopeDebtTest < ActiveSupport::TestCase
     assert_equal debt_before, balance(@debt)
   end
 
-  test "debt_reserve and unreserved_debt_balance are zero in cap mode" do
+  test "debt_reserve is zero in cap mode" do
     @family.deactivate_envelope_mode!
 
     assert_equal 0, @family.debt_reserve.amount
-    assert_equal 0, @family.unreserved_debt_balance.amount
   end
 
   private

@@ -326,33 +326,15 @@ class Family < ApplicationRecord
     envelope_category_math[:assigned]
   end
 
-  # Cash the Debt Payment envelope is holding against credit purchases already
-  # made. Positive while a balance is carried; zero for a family that never
-  # uses credit. See IncomeStatement::LiabilityReserve.
+  # The Debt Payment envelope's balance: cash held against credit purchases
+  # already made, plus anything assigned toward paying debt down. Zero for a
+  # family that never uses credit, and negative when card payments have gone
+  # out that nothing was assigned for — the same overspend semantics as any
+  # other envelope. See IncomeStatement::LiabilityReserve.
   def debt_reserve
     return Money.new(0, primary_currency_code) unless envelope_mode?
 
     Money.new(envelope_balances_by_category.fetch(debt_payment_category.id, 0), primary_currency_code)
-  end
-
-  # Card debt that no envelope is holding cash against — chiefly the balance
-  # carried in on the day the family switched to envelope mode, which is
-  # deliberately not auto-funded. Also catches manual-only card users, whose
-  # balance corrections arrive as Valuations and so never enter the reserve.
-  #
-  # Uses income_statement.eligible_accounts rather than raw `accounts` so it
-  # agrees with the per-user-scoped reserve it's compared against, and is
-  # restricted to the primary currency for the same reason
-  # in_budget_cash_balance is.
-  def unreserved_debt_balance
-    return Money.new(0, primary_currency_code) unless envelope_mode?
-
-    owed = income_statement.eligible_accounts
-                           .where(accountable_type: IncomeStatement::LiabilityReserve::REVOLVING_TYPES,
-                                  currency: primary_currency_code)
-                           .sum(:balance)
-
-    Money.new([ owed.to_d - debt_reserve.amount, 0 ].max, primary_currency_code)
   end
 
   def reset_envelope_caches!
