@@ -1,7 +1,7 @@
 require "test_helper"
 
 class AccountsControllerTest < ActionDispatch::IntegrationTest
-  include ActionView::RecordIdentifier
+  include ActionView::RecordIdentifier, EntriesTestHelper
 
   setup do
     sign_in @user = users(:family_admin)
@@ -266,6 +266,50 @@ class AccountsControllerTest < ActionDispatch::IntegrationTest
     assert_redirected_to account_url(@account)
   end
 
+  test "rescan_reconciliation finds matches and reports the count" do
+    enable_preview_features
+    @account.family.update!(manual_reconciliation_mode: "review_only")
+
+    create_transaction(account: @account, amount: 40, date: 2.days.ago.to_date, name: "samsung affirm")
+    provider = create_transaction(account: @account, amount: 40, date: 1.day.ago.to_date, name: "affirm - direct payment")
+    provider.update!(external_id: "plaid_rescan_1", source: "plaid")
+
+    assert_difference "TransactionReconciliation.count", 1 do
+      post rescan_reconciliation_account_url(@account)
+    end
+
+    assert_redirected_to account_url(@account)
+  end
+
+  test "rescan_reconciliation redirects with no matches found" do
+    enable_preview_features
+    @account.family.update!(manual_reconciliation_mode: "review_only")
+
+    assert_no_difference "TransactionReconciliation.count" do
+      post rescan_reconciliation_account_url(@account)
+    end
+
+    assert_redirected_to account_url(@account)
+  end
+
+  test "rescan_reconciliation redirects when preview features are disabled" do
+    disable_preview_features
+    @account.family.update!(manual_reconciliation_mode: "review_only")
+
+    post rescan_reconciliation_account_url(@account)
+
+    assert_redirected_to root_url
+  end
+
+  test "rescan_reconciliation requires write permission" do
+    enable_preview_features
+    sign_in users(:family_member)
+
+    post rescan_reconciliation_account_url(accounts(:credit_card))
+
+    assert_redirected_to account_url(accounts(:credit_card))
+  end
+
   test "confirms unlink for linked account" do
     plaid_account = plaid_accounts(:one)
     AccountProvider.create!(account: @account, provider: plaid_account)
@@ -492,6 +536,15 @@ class AccountsControllerTest < ActionDispatch::IntegrationTest
     ActionView::Base.logger = original_view_logger
     Rails.logger = original_rails_logger
   end
+
+  private
+    def enable_preview_features
+      @user.update!(preferences: (@user.preferences || {}).merge("preview_features_enabled" => true))
+    end
+
+    def disable_preview_features
+      @user.update!(preferences: (@user.preferences || {}).merge("preview_features_enabled" => false))
+    end
 end
 
 class AccountsControllerSimplefinCtaTest < ActionDispatch::IntegrationTest

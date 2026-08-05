@@ -17,6 +17,7 @@ This app is genuinely alpha-quality right now. This page is about setting expect
 - Syncing isn't always instant — it can take a few minutes, especially right after linking a new account.
 - Providers occasionally report **pending** transactions that later change slightly (amount, merchant name, date) once they fully post. That's the provider, not this app, being imprecise.
 - If a sync fails or a provider has an outage, the app won't invent data — you'll just see stale balances until the next successful sync (or you can trigger one manually from the account page).
+- **Linking a provider to an account you'd been tracking by hand is a go-forward moment, not a look-back one.** During setup you can link a provider account to your existing manual account instead of creating a duplicate, and that keeps everything you've already entered. Recent overlap gets matched automatically or queued for you to review, but older history isn't chased. So either hand-reconcile the older stretch yourself, or accept the provider's balance from the link date onward and move on — both are fine, and the second one is usually the better use of your evening.
 
 ## How to report issues (alpha)
 

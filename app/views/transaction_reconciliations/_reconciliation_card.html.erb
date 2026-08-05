@@ -1,0 +1,76 @@
+<%# locals: (reconciliation:) %>
+
+<div id="<%= dom_id(reconciliation) %>" class="bg-container rounded-xl shadow-border-xs">
+  <div class="p-4 space-y-3">
+    <div class="flex items-start justify-between gap-3">
+      <div class="min-w-0">
+        <h3 class="text-sm font-medium text-primary"><%= t(".title") %></h3>
+        <% if (reason = reconciliation_reason(reconciliation)) %>
+          <p class="text-xs text-secondary mt-0.5"><%= reason %></p>
+        <% end %>
+      </div>
+
+      <%= render DS::Pill.new(
+        label: reconciliation_confidence_label(reconciliation),
+        tone: reconciliation_confidence_tone(reconciliation),
+        marker: false,
+        size: :sm
+      ) %>
+    </div>
+
+    <%# Both sides adjacent and identically shaped. The user is being asked
+        "same purchase?", and that comparison is only cheap if the two rows
+        line up field for field. %>
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+      <div class="rounded-lg bg-container-inset p-3 space-y-1 min-w-0">
+        <p class="text-xs text-subdued"><%= t(".manual_side") %></p>
+        <p class="text-sm text-primary truncate"><%= reconciliation.manual_entry.name %></p>
+        <p class="text-sm font-mono text-primary privacy-sensitive"><%= format_money(reconciliation.manual_entry.amount_money) %></p>
+        <p class="text-xs text-secondary"><%= format_date(reconciliation.manual_entry.date) %></p>
+      </div>
+
+      <div class="rounded-lg bg-container-inset p-3 space-y-1 min-w-0">
+        <p class="text-xs text-subdued"><%= t(".provider_side") %></p>
+        <p class="text-sm text-primary truncate"><%= reconciliation.provider_name %></p>
+        <p class="text-sm font-mono text-primary privacy-sensitive"><%= format_money(reconciliation.provider_money) %></p>
+        <p class="text-xs text-secondary">
+          <%= format_date(reconciliation.provider_date) if reconciliation.provider_date %>
+        </p>
+      </div>
+    </div>
+
+    <% amount_label = reconciliation_amount_delta_label(reconciliation) %>
+    <% date_label = reconciliation_date_delta_label(reconciliation) %>
+    <% if amount_label || date_label %>
+      <div class="flex flex-wrap items-center gap-2">
+        <% if amount_label %>
+          <%= render DS::Pill.new(label: amount_label, tone: :neutral, marker: false, size: :sm) %>
+        <% end %>
+        <% if date_label %>
+          <%= render DS::Pill.new(label: date_label, tone: :neutral, marker: false, size: :sm) %>
+        <% end %>
+      </div>
+    <% end %>
+  </div>
+
+  <%# "Not the same" is the quieter control on purpose: rejecting is a
+      tombstone the matcher then honours forever, so it should not be the
+      easiest thing to hit by reflex. %>
+  <div class="px-4 py-2.5 bg-container-inset rounded-b-xl flex items-center justify-between gap-3">
+    <%= render DS::Button.new(
+      text: t(".reject"),
+      variant: "ghost",
+      size: "sm",
+      href: reject_transaction_reconciliation_path(reconciliation),
+      method: :post
+    ) %>
+
+    <%= render DS::Button.new(
+      text: t(".confirm"),
+      icon: "git-merge",
+      size: "sm",
+      href: confirm_transaction_reconciliation_path(reconciliation),
+      method: :post
+    ) %>
+  </div>
+</div>

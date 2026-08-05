@@ -55,6 +55,17 @@ class TransactionsController < ApplicationController
       Set.new
     end
 
+    # Same reason as above: the reconciliation pill needs a join, and the
+    # partial must not pay for it once per row.
+    @reconciliations_by_entry_id = if entry_ids.any?
+      Current.family.transaction_reconciliations
+             .actionable
+             .where(manual_entry_id: entry_ids)
+             .index_by(&:manual_entry_id)
+    else
+      {}
+    end
+
     @uncategorized_count = Current.accessible_entries.uncategorized_transactions.count
 
     # Projected recurring transactions: a short window back (so a just-missed

@@ -158,6 +158,20 @@
                       <% end %>
                     <% end %>
 
+                    <%# Awaiting reconciliation review. Unlike the pills above,
+                        this one needs a join, so the index preloads it into a
+                        lookup and the fallback is a per-row query only on the
+                        surfaces that render a transaction on its own. %>
+                    <% if (@reconciliations_by_entry_id ? @reconciliations_by_entry_id.key?(entry.id) : entry.reconciliation_pending?) %>
+                      <%= render DS::Pill.new(
+                        label: t("transactions.transaction.reconciliation_pending"),
+                        tone: :info,
+                        marker: false,
+                        icon: "git-merge",
+                        title: t("transactions.transaction.reconciliation_pending_tooltip")
+                      ) %>
+                    <% end %>
+
                     <%# Split indicator %>
                     <% if @split_parent_entry_ids ? @split_parent_entry_ids.include?(entry.id) : entry.split_parent? %>
                       <%= render DS::Pill.new(
