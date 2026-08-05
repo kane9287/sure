@@ -30,6 +30,9 @@ class Settings::HostingsControllerTest < ActionDispatch::IntegrationTest
     %i[anthropic_access_token anthropic_base_url anthropic_model llm_provider twelve_data_api_key openai_access_token external_assistant_token rentcast_api_key realie_api_key].each do |key|
       Setting.public_send("#{key}=", nil)
     end
+
+    # Boolean field - restore the boot default rather than nil, which wouldn't round-trip
+    Setting.simplefin_import_notes = Rails.configuration.x.simplefin.import_notes
   end
 
   test "cannot edit when self hosting is disabled" do
@@ -57,6 +60,16 @@ class Settings::HostingsControllerTest < ActionDispatch::IntegrationTest
       patch settings_hosting_url, params: { setting: { rentcast_api_key: "rentcast-token" } }
 
       assert_equal "rentcast-token", Setting.rentcast_api_key
+    end
+  end
+
+  test "can toggle simplefin note import when self hosting is enabled" do
+    with_self_hosting do
+      patch settings_hosting_url, params: { setting: { simplefin_import_notes: "0" } }
+      assert_equal false, Setting.simplefin_import_notes
+
+      patch settings_hosting_url, params: { setting: { simplefin_import_notes: "1" } }
+      assert_equal true, Setting.simplefin_import_notes
     end
   end
 

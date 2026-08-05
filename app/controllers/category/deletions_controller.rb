@@ -12,13 +12,15 @@ class Category::DeletionsController < ApplicationController
   end
 
   private
+    # user_selectable on both sides: built-in categories can't be deleted, and
+    # can't absorb another category's transactions either.
     def set_category
-      @category = Current.family.categories.find(params[:category_id])
+      @category = Current.family.categories.user_selectable.find(params[:category_id])
     end
 
     def set_replacement_category
       if params[:replacement_category_id].present?
-        @replacement_category = Current.family.categories.find(params[:replacement_category_id])
+        @replacement_category = Current.family.categories.user_selectable.find(params[:replacement_category_id])
       end
     end
 end

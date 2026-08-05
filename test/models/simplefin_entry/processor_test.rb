@@ -235,6 +235,115 @@ class SimplefinEntry::ProcessorTest < ActiveSupport::TestCase
     end
   end
 
+  test "stores the memo as notes without appending the payee" do
+    # The payee is already in entry.name and on the merchant, so repeating it in notes
+    # would crowd out the user's own annotations.
+    tx = {
+      id: "tx_notes_memo_1",
+      amount: "-15.00",
+      currency: "USD",
+      payee: "Corner Store",
+      description: "POS PURCHASE",
+      memo: "Check #1234",
+      posted: Date.current.to_s
+    }
+
+    with_env_overrides SIMPLEFIN_IMPORT_NOTES: nil do
+      SimplefinEntry::Processor.new(tx, simplefin_account: @simplefin_account).process
+    end
+
+    entry = @account.entries.find_by!(external_id: "simplefin_tx_notes_memo_1", source: "simplefin")
+    assert_equal "Check #1234", entry.notes
+  end
+
+  test "leaves notes blank when the transaction has no memo" do
+    tx = {
+      id: "tx_notes_no_memo_1",
+      amount: "-15.00",
+      currency: "USD",
+      payee: "Corner Store",
+      description: "POS PURCHASE",
+      posted: Date.current.to_s
+    }
+
+    with_env_overrides SIMPLEFIN_IMPORT_NOTES: nil do
+      SimplefinEntry::Processor.new(tx, simplefin_account: @simplefin_account).process
+    end
+
+    entry = @account.entries.find_by!(external_id: "simplefin_tx_notes_no_memo_1", source: "simplefin")
+    assert_predicate entry.notes.to_s, :blank?
+  end
+
+  test "skips notes but still imports the transaction when note import is disabled" do
+    Setting.stubs(:simplefin_import_notes).returns(false)
+
+    tx = {
+      id: "tx_notes_disabled_1",
+      amount: "-15.00",
+      currency: "USD",
+      payee: "Corner Store",
+      description: "POS PURCHASE",
+      memo: "Check #1234",
+      posted: Date.current.to_s
+    }
+
+    # Clear the env var so this only exercises the Setting fallback branch of import_notes_enabled?
+    with_env_overrides SIMPLEFIN_IMPORT_NOTES: nil do
+      assert_difference "@account.entries.count", 1 do
+        SimplefinEntry::Processor.new(tx, simplefin_account: @simplefin_account).process
+      end
+    end
+
+    entry = @account.entries.find_by!(external_id: "simplefin_tx_notes_disabled_1", source: "simplefin")
+    assert_predicate entry.notes.to_s, :blank?
+  end
+
+  test "SIMPLEFIN_IMPORT_NOTES env var takes precedence over Setting" do
+    Setting.stubs(:simplefin_import_notes).returns(false)
+    Rails.configuration.x.simplefin.stubs(:import_notes).returns(true)
+
+    tx = {
+      id: "tx_notes_env_override_1",
+      amount: "-15.00",
+      currency: "USD",
+      payee: "Corner Store",
+      description: "POS PURCHASE",
+      memo: "Check #1234",
+      posted: Date.current.to_s
+    }
+
+    with_env_overrides SIMPLEFIN_IMPORT_NOTES: "1" do
+      SimplefinEntry::Processor.new(tx, simplefin_account: @simplefin_account).process
+    end
+
+    entry = @account.entries.find_by!(external_id: "simplefin_tx_notes_env_override_1", source: "simplefin")
+    assert_equal "Check #1234", entry.notes
+  end
+
+  test "SIMPLEFIN_IMPORT_NOTES env var disabling notes takes precedence over a permissive Setting" do
+    # The real-world scenario: a self-hoster sets SIMPLEFIN_IMPORT_NOTES=0 while the
+    # Setting (UI toggle) still says "import notes". The env var must win.
+    Setting.stubs(:simplefin_import_notes).returns(true)
+    Rails.configuration.x.simplefin.stubs(:import_notes).returns(false)
+
+    tx = {
+      id: "tx_notes_env_disable_1",
+      amount: "-15.00",
+      currency: "USD",
+      payee: "Corner Store",
+      description: "POS PURCHASE",
+      memo: "Check #1234",
+      posted: Date.current.to_s
+    }
+
+    with_env_overrides SIMPLEFIN_IMPORT_NOTES: "0" do
+      SimplefinEntry::Processor.new(tx, simplefin_account: @simplefin_account).process
+    end
+
+    entry = @account.entries.find_by!(external_id: "simplefin_tx_notes_env_disable_1", source: "simplefin")
+    assert_predicate entry.notes.to_s, :blank?
+  end
+
   test "infers pending when posted is explicitly 0 and transacted_at present (no explicit pending flag)" do
     # Some SimpleFIN banks indicate pending by sending posted=0 + transacted_at, without pending flag
     t_epoch = (Date.current - 1).to_time.to_i

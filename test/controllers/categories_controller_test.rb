@@ -131,6 +131,56 @@ class CategoriesControllerTest < ActionDispatch::IntegrationTest
     assert_redirected_to categories_url
   end
 
+  test "index lists a built-in category with a badge and no actions menu" do
+    debt_payment = @family.debt_payment_category
+
+    get categories_url
+
+    assert_response :success
+    assert_select "#category_#{debt_payment.id} > [data-testid='category-content']", count: 1
+    assert_select "#category_#{debt_payment.id} [data-testid='category-name']", text: debt_payment.display_name
+    assert_select "#category_#{debt_payment.id} [data-testid='category-actions'] *", count: 0
+  end
+
+  test "destroy refuses a built-in category" do
+    debt_payment = @family.debt_payment_category
+
+    assert_no_difference "Category.count" do
+      delete category_url(debt_payment)
+    end
+
+    assert_redirected_to categories_url
+    assert Category.exists?(debt_payment.id)
+  end
+
+  test "destroy_all spares built-in categories" do
+    debt_payment = @family.debt_payment_category
+
+    delete destroy_all_categories_url
+
+    assert Category.exists?(debt_payment.id)
+    assert_not Category.exists?(categories(:food_and_drink).id)
+  end
+
+  test "update cannot rename a built-in category" do
+    debt_payment = @family.debt_payment_category
+
+    assert_no_changes -> { debt_payment.reload.name } do
+      patch category_url(debt_payment), params: { category: { name: "Renamed" } }
+    end
+
+    assert_response :unprocessable_entity
+  end
+
+  test "update can still recolor a built-in category" do
+    debt_payment = @family.debt_payment_category
+    new_color = Category::COLORS.without(debt_payment.color).sample
+
+    patch category_url(debt_payment), params: { category: { color: new_color } }
+
+    assert_equal new_color, debt_payment.reload.color
+  end
+
   test "merge renders in the settings layout" do
     get merge_categories_path
 

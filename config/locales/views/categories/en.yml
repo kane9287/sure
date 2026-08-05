@@ -4,6 +4,7 @@ en:
     bootstrap:
       success: Default categories created successfully
     category:
+      built_in: Built in
       delete: Delete category
       edit: Edit category
     create:

@@ -14,6 +14,7 @@ class Category::Merger
     sources.each { |category| validate_category_belongs_to_family!(category, "Source category '#{category.name}'") }
 
     @source_categories = sources.reject { |category| category.id == target_category.id }
+    validate_no_system_categories!
     validate_hierarchy!
     validate_reparenting!
   end
@@ -40,6 +41,20 @@ class Category::Merger
       return if category&.family_id == family.id
 
       raise UnauthorizedCategoryError, "#{label} does not belong to this family"
+    end
+
+    # Blocked in both directions: a system category can't be destroyed (it's
+    # the source side of a merge), and merging into one would hand it
+    # transactions its derived balance already accounts for.
+    def validate_no_system_categories!
+      if target_category.system?
+        raise UnauthorizedCategoryError, "Cannot merge into the built-in category '#{target_category.display_name}'"
+      end
+
+      offender = source_categories.find(&:system?)
+      return if offender.nil?
+
+      raise UnauthorizedCategoryError, "Cannot merge the built-in category '#{offender.display_name}'"
     end
 
     def validate_hierarchy!

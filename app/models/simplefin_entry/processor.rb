@@ -41,7 +41,7 @@ class SimplefinEntry::Processor
       name: name,
       source: "simplefin",
       merchant: merchant,
-      notes: notes,
+      notes: import_notes_enabled? ? notes : nil,
       extra: extra_metadata
     )
   end
@@ -56,6 +56,18 @@ class SimplefinEntry::Processor
         Rails.configuration.x.simplefin.include_pending
       else
         Setting.syncs_include_pending
+      end
+    end
+
+    # Whether the provider memo should be written to the entry's notes field. Same
+    # resolution order as pending_enabled?: env var (when set) over runtime Setting.
+    # When disabled we pass notes: nil, which import_transaction treats as a no-op -
+    # so turning this off never clears a note the user wrote themselves.
+    def import_notes_enabled?
+      if ENV["SIMPLEFIN_IMPORT_NOTES"].present?
+        Rails.configuration.x.simplefin.import_notes
+      else
+        Setting.simplefin_import_notes
       end
     end
 
@@ -216,16 +228,9 @@ class SimplefinEntry::Processor
     end
 
     def notes
-      # Prefer memo if present; include payee when it differs from description for richer context
-      memo = data[:memo].to_s.strip
-      payee = data[:payee].to_s.strip
-      description = data[:description].to_s.strip
-
-      parts = []
-      parts << memo if memo.present?
-      if payee.present? && payee != description
-        parts << "Payee: #{payee}"
-      end
-      parts.presence&.join(" | ")
+      # Memo only. The payee is deliberately not appended here - #name already renders it
+      # as "payee - description" and #merchant resolves it into a Merchant record, so
+      # repeating it in notes only crowds out the user's own annotations.
+      data[:memo].to_s.strip.presence
     end
 end

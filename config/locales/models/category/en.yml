@@ -1,10 +1,25 @@
 ---
 en:
+  activerecord:
+    errors:
+      models:
+        category:
+          attributes:
+            base:
+              system_category_undeletable: This is a built-in category and can't be
+                deleted.
+            name:
+              immutable_for_system_category: can't be changed on a built-in category
+            parent_id:
+              immutable_for_system_category: can't be changed on a built-in category
+            system_key:
+              immutable: can't be changed once set
   models:
     category:
       uncategorized: Uncategorized
       other_investments: Other Investments
       investment_contributions: Investment Contributions
+      debt_payment: Debt Payment
       defaults:
         income: Income
         food_and_drink: Food & Drink

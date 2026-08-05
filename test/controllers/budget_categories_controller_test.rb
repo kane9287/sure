@@ -176,4 +176,45 @@ class BudgetCategoriesControllerTest < ActionDispatch::IntegrationTest
     assert_includes @response.body, "MORTGAGE_REPRO_OUTFLOW",
       "loan_payment outflow remains visible (kind is not BUDGET_EXCLUDED)"
   end
+
+  test "index renders the built-in debt envelope row in envelope mode" do
+    @family.activate_envelope_mode!
+
+    get budget_budget_categories_path(@budget)
+    assert_response :success
+
+    assert_select "##{dom_id(debt_budget_category, :envelope_row)}", count: 1
+  end
+
+  test "index hides the built-in debt envelope in cap mode" do
+    @family.activate_envelope_mode!
+    get budget_budget_categories_path(@budget)
+    row = debt_budget_category
+
+    @family.deactivate_envelope_mode!
+    get budget_budget_categories_path(@budget)
+    assert_response :success
+
+    # Cap mode shows spending caps, and nothing can be categorized into a
+    # built-in envelope, so a cap for it would be meaningless.
+    assert_select "##{dom_id(row, :envelope_row)}", count: 0
+    assert_select "##{dom_id(row, :form)}", count: 0
+  end
+
+  test "index heals a family that entered envelope mode before system categories existed" do
+    @family.update_columns(budget_mode: "envelope", envelope_activated_on: Date.current)
+    assert_nil @family.categories.find_by(system_key: "debt_payment")
+
+    get budget_budget_categories_path(@budget)
+    assert_response :success
+
+    healed = @family.categories.reload.find_by(system_key: "debt_payment")
+    assert_not_nil healed
+    assert @budget.budget_categories.reload.exists?(category: healed)
+  end
+
+  private
+    def debt_budget_category
+      @budget.budget_categories.reload.find_by!(category: @family.debt_payment_category)
+    end
 end

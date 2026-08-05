@@ -2,8 +2,16 @@
 
 <%= render "budgets/unassigned_pool", budget: budget %>
 
+<%# Built-in envelopes get their own row type and are pinned above the
+    alphabetical list, so they're split out of the grouping below. %>
+<% system_budget_categories, user_budget_categories = budget_categories.partition { |bc| bc.category.system? } %>
+
 <div class="divide-y divide-alpha-black-200 theme-dark:divide-alpha-white-200 mb-4">
-  <% BudgetCategory::Group.for(budget_categories).sort_by(&:name).each do |group| %>
+  <% system_budget_categories.each do |budget_category| %>
+    <%= render "budget_categories/envelope_debt_payment_row", budget_category: budget_category, budget: budget %>
+  <% end %>
+
+  <% BudgetCategory::Group.for(user_budget_categories).sort_by(&:name).each do |group| %>
     <%= render "budget_categories/envelope_category_row", budget_category: group.budget_category, budget: budget %>
 
     <% group.budget_subcategories.each do |budget_subcategory| %>

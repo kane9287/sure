@@ -5,6 +5,9 @@ en:
       models:
         transaction:
           attributes:
+            category:
+              not_user_selectable: "is a built-in category and can't be assigned to
+                a transaction"
             attachments:
               too_many: "cannot exceed %{max} files per transaction"
               too_large: "file %{index} is too large (maximum %{max_mb}MB)"

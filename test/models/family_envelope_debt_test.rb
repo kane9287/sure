@@ -1,0 +1,219 @@
+require "test_helper"
+
+# Credit spending used to invent money: a card charge dropped its spending
+# envelope while cash stayed put, so the Unassigned pool grew by the amount
+# just spent and shrank again a month later when the card was paid. The built-in
+# Debt Payment envelope absorbs that gap.
+#
+# The property under test throughout is Δunassigned == 0 across events that only
+# move money between cash, debt and envelopes. Note that a bare Entry never
+# moves accounts.balance (sync_account_later is called explicitly, not by a
+# callback), so post! moves both — without that these assertions pass vacuously.
+class FamilyEnvelopeDebtTest < ActiveSupport::TestCase
+  setup do
+    @family = families(:dylan_family)
+    @family.activate_envelope_mode!
+
+    @checking = accounts(:depository)
+    @card = accounts(:credit_card)
+    @groceries = @family.categories.create!(name: "Groceries #{Time.now.to_f}", color: "#123456")
+    @debt = @family.debt_payment_category
+  end
+
+  test "envelope mode creates the built-in Debt Payment category" do
+    assert @debt.debt_payment?
+    assert @debt.system?
+    assert_equal @debt, @family.debt_payment_category
+  end
+
+  test "a card purchase drops the spending envelope and raises the reserve by the same amount" do
+    fund!(@groceries, 200)
+    groceries_before, debt_before = balance(@groceries), balance(@debt)
+
+    assert_pool_unchanged do
+      post!(account: @card, amount: 100, category: @groceries)
+    end
+
+    assert_equal groceries_before - 100, balance(@groceries)
+    assert_equal debt_before + 100, balance(@debt)
+  end
+
+  test "paying the card drains the reserve and the cash together" do
+    fund!(@groceries, 200)
+    post!(account: @card, amount: 100, category: @groceries)
+    debt_before = balance(@debt)
+
+    assert_pool_unchanged do
+      pay!(100, to: @card)
+    end
+
+    assert_equal debt_before - 100, balance(@debt)
+  end
+
+  test "spending cash out of a funded envelope leaves the reserve alone" do
+    fund!(@groceries, 200)
+    debt_before = balance(@debt)
+
+    assert_pool_unchanged do
+      post!(account: @checking, amount: 50, category: @groceries)
+    end
+
+    assert_equal debt_before, balance(@debt)
+  end
+
+  test "the debt reserve is not clamped at zero" do
+    debt_before = balance(@debt)
+
+    # A refund with no offsetting charge. Clamping the reserve at zero here
+    # would leave the refund raising the spending envelope with nothing pulling
+    # the other way, and the pool would lose $30 that still exists.
+    assert_pool_unchanged do
+      post!(account: @card, amount: -30, category: @groceries)
+    end
+
+    assert_equal debt_before - 30, balance(@debt)
+  end
+
+  test "overspending a card envelope shows red without moving the pool" do
+    fund!(@groceries, 80)
+    debt_before = balance(@debt)
+
+    assert_pool_unchanged do
+      post!(account: @card, amount: 250, category: @groceries)
+    end
+
+    assert_operator balance(@groceries), :<, 0
+    assert_equal debt_before + 250, balance(@debt)
+  end
+
+  test "the pool holds steady across a full credit cycle" do
+    assert_pool_unchanged do
+      fund!(@groceries, 200)
+      post!(account: @card, amount: 100, category: @groceries)
+      pay!(100, to: @card)
+      post!(account: @checking, amount: 50, category: @groceries)
+      post!(account: @card, amount: -30, category: @groceries)
+      post!(account: @card, amount: 250, category: @groceries)
+    end
+  end
+
+  test "debt carried in at activation is not auto-funded" do
+    reserve_before = @family.debt_reserve.amount
+    unreserved_before = @family.unreserved_debt_balance.amount
+
+    # A balance that predates activation arrives as a balance change, not as
+    # transactions in the period, so nothing enters the reserve.
+    @card.update!(balance: @card.balance + 500)
+    @family.reset_envelope_caches!
+
+    assert_equal reserve_before, @family.debt_reserve.amount
+    assert_equal unreserved_before + 500, @family.unreserved_debt_balance.amount
+  end
+
+  test "paying pre-activation debt overspends the debt envelope rather than moving the pool" do
+    @card.update!(balance: @card.balance + 500)
+    debt_before = balance(@debt)
+
+    assert_pool_unchanged do
+      pay!(500, to: @card)
+    end
+
+    # Same mechanics as any other overspend: the envelope goes red until the
+    # user assigns to it, and the pool only moves when they do.
+    assert_equal debt_before - 500, balance(@debt)
+
+    assert_difference -> { @family.reset_envelope_caches!; @family.unassigned_pool_balance.amount }, -500 do
+      fund!(@debt, 500)
+    end
+  end
+
+  test "assigning to the debt envelope clears the unreserved warning" do
+    @card.update!(balance: @card.balance + 500)
+    @family.reset_envelope_caches!
+    unreserved = @family.unreserved_debt_balance.amount
+    assert_operator unreserved, :>, 0
+
+    fund!(@debt, unreserved)
+    @family.reset_envelope_caches!
+
+    assert_equal 0, @family.unreserved_debt_balance.amount
+  end
+
+  test "unreserved_debt_balance never goes negative" do
+    fund!(@debt, 100_000)
+    @family.reset_envelope_caches!
+
+    assert_equal 0, @family.unreserved_debt_balance.amount
+  end
+
+  test "a loan payment expenses its envelope without touching the debt reserve" do
+    fund!(@groceries, 500)
+    debt_before = balance(@debt)
+
+    assert_pool_unchanged do
+      post!(account: @checking, amount: 300, category: @groceries, kind: "loan_payment")
+    end
+
+    assert_equal debt_before, balance(@debt)
+  end
+
+  test "debt_reserve and unreserved_debt_balance are zero in cap mode" do
+    @family.deactivate_envelope_mode!
+
+    assert_equal 0, @family.debt_reserve.amount
+    assert_equal 0, @family.unreserved_debt_balance.amount
+  end
+
+  private
+    def assert_pool_unchanged
+      @family.reset_envelope_caches!
+      before = @family.unassigned_pool_balance.amount
+
+      yield
+
+      @family.reset_envelope_caches!
+      assert_equal before, @family.unassigned_pool_balance.amount,
+        "Unassigned moved on an event that only shifts money between cash, debt and envelopes"
+    end
+
+    def balance(category)
+      @family.reset_envelope_caches!
+      @family.envelope_balances_by_category[category.id]
+    end
+
+    def fund!(category, amount)
+      @family.budget_allocations.create!(
+        category: category, amount: amount, currency: "USD", date: Date.current, kind: "fund"
+      )
+    end
+
+    # An Entry on its own never moves accounts.balance — Entry#sync_account_later
+    # is called explicitly, not from a callback — so move it here too. Without
+    # this, cash is frozen and every pool assertion passes for free.
+    def post!(account:, amount:, category: nil, kind: "standard")
+      Entry.create!(
+        account: account,
+        date: Date.current,
+        name: "Posted #{amount}",
+        amount: amount,
+        currency: "USD",
+        entryable: Transaction.create!(category: category, kind: kind)
+      )
+
+      delta = account.classification == "liability" ? amount : -amount
+      account.update!(balance: account.balance + delta)
+    end
+
+    def pay!(amount, to:, from: @checking)
+      Transfer::Creator.new(
+        family: @family,
+        source_account_id: from.id,
+        destination_account_id: to.id,
+        date: Date.current,
+        amount: amount
+      ).create
+
+      from.update!(balance: from.balance - amount)
+      to.update!(balance: to.balance - amount)
+    end
+end

@@ -118,7 +118,7 @@ class Assistant::Function::UpdateTransaction < Assistant::Function
       if params.key?("category_id")
         category_id = optional_uuid(params["category_id"])
         return category_id if error_response?(category_id)
-        return error("invalid_category", "category_id does not belong to the user's family.") if category_id && !family.categories.exists?(id: category_id)
+        return error("invalid_category", "category_id does not belong to the user's family.") if category_id && !family.categories.user_selectable.exists?(id: category_id)
 
         entryable_attrs[:category_id] = category_id
       end

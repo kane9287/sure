@@ -3,7 +3,7 @@ class SplitsController < ApplicationController
   before_action :require_split_write_permission!, only: %i[create update destroy]
 
   def new
-    @categories = Current.family.categories.alphabetically
+    @categories = Current.family.categories.user_selectable.alphabetically
   end
 
   def create
@@ -35,7 +35,7 @@ class SplitsController < ApplicationController
       return
     end
 
-    @categories = Current.family.categories.alphabetically
+    @categories = Current.family.categories.user_selectable.alphabetically
     @children = @entry.child_entries.includes(:entryable)
   end
 

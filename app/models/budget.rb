@@ -58,6 +58,12 @@ class Budget < ApplicationRecord
           b.currency = family.currency
         end
 
+        # Heals families that entered envelope mode before system categories
+        # existed, and guarantees the debt envelope has a BudgetCategory row
+        # before the envelope screen renders. Runs here rather than in a
+        # backfill migration so it also covers restored/imported families.
+        family.ensure_envelope_system_categories! if family.envelope_mode?
+
         budget.current_user = user
         budget.sync_budget_categories
 

@@ -215,7 +215,7 @@ class RuleImport < Import
 
       # Map category names to UUIDs
       if condition_type == "transaction_category"
-        category = family.categories.find_by(name: value)
+        category = family.categories.user_selectable.find_by(name: value)
         unless category
           category = family.categories.create!(
             name: value,
@@ -246,7 +246,7 @@ class RuleImport < Import
 
       # Map category names to UUIDs
       if action_type == "set_transaction_category"
-        category = family.categories.find_by(name: value)
+        category = family.categories.user_selectable.find_by(name: value)
         # Create category if it doesn't exist
         unless category
           category = family.categories.create!(

@@ -13,6 +13,12 @@ Rails.application.configure do
   config.x.simplefin.include_pending = pending_env.blank? ? true : !falsy.include?(pending_env)
   config.x.simplefin.debug_raw = truthy.include?(ENV["SIMPLEFIN_DEBUG_RAW"].to_s.strip.downcase)
 
+  # Default to true - preserves the long-standing behaviour of storing SimpleFIN's memo
+  # on the transaction's notes field. Set SIMPLEFIN_IMPORT_NOTES=0 if you reserve notes
+  # for your own annotations and don't want a provider memo on every transaction.
+  import_notes_env = ENV["SIMPLEFIN_IMPORT_NOTES"].to_s.strip.downcase
+  config.x.simplefin.import_notes = import_notes_env.blank? ? true : !falsy.include?(import_notes_env)
+
   # Common money market fund tickers that should be treated as cash equivalents
   # These are settlement funds that users consider "cash available to invest"
   # SimpleFIN doesn't provide is_cash_equivalent metadata like Plaid does,

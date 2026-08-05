@@ -68,7 +68,18 @@ en:
       subtitle: "Cash in your budget accounts not yet assigned to an envelope"
       allocate: "Allocate"
       percent_assigned: "%{percent} assigned"
+      unreserved_debt: "%{amount} of card debt isn't reserved yet. Assign it to the
+        Debt Payment envelope so your Unassigned figure reflects what you already
+        owe."
   budget_categories:
+    envelope_debt_payment_row:
+      subtitle: Holds cash for purchases you've already made on credit
+      reserved: Reserved
+      total_debt: "Total card debt: %{amount}"
+      unreserved: "Unreserved: %{amount}"
+      unreserved_hint: Debt from before you started envelope budgeting
+      reserve_action: Reserve
+      fully_reserved: Fully reserved
     allocation_progress:
       budget_exceeded_html: 'Budget exceeded by <span class="text-red-500 privacy-sensitive">%{amount}</span>'
       left_to_allocate: left to allocate

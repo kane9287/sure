@@ -159,4 +159,83 @@ class CategoryTest < ActiveSupport::TestCase
     assert lookup.key?(category.id)
     assert_not lookup.key?(0)
   end
+
+  test "a system category cannot be renamed, reparented or re-keyed" do
+    category = @family.debt_payment_category
+
+    category.name = "Something else"
+    category.parent = categories(:food_and_drink)
+    category.system_key = nil
+
+    assert_not category.valid?
+    assert_includes category.errors.attribute_names, :name
+    assert_includes category.errors.attribute_names, :parent_id
+    assert_includes category.errors.attribute_names, :system_key
+  end
+
+  test "a system category's color and icon are still editable" do
+    category = @family.debt_payment_category
+
+    assert category.update(color: "#abcdef", lucide_icon: "wallet")
+  end
+
+  test "a system category cannot be destroyed on its own" do
+    category = @family.debt_payment_category
+
+    assert_no_difference "Category.count" do
+      assert_not category.destroy
+    end
+
+    assert_includes category.errors.attribute_names, :base
+  end
+
+  test "destroying a family still destroys its system categories" do
+    family = Family.create!(name: "Doomed Family #{Time.now.to_f}", currency: "USD", locale: "en")
+    family.activate_envelope_mode!
+    category = family.debt_payment_category
+
+    family.destroy!
+
+    assert_not Category.exists?(category.id)
+  end
+
+  test "user_selectable excludes system categories" do
+    category = @family.debt_payment_category
+
+    assert_not_includes @family.categories.user_selectable, category
+    assert_includes @family.categories.user_selectable, categories(:food_and_drink)
+  end
+
+  test "system_key is unique per family" do
+    @family.debt_payment_category
+    duplicate = @family.categories.new(name: "Another debt envelope", system_key: "debt_payment")
+
+    assert_not duplicate.valid?
+    assert_includes duplicate.errors.attribute_names, :system_key
+  end
+
+  test "display_name resolves a system category through i18n rather than the stored name" do
+    category = @family.debt_payment_category
+
+    assert_equal I18n.t("models.category.debt_payment"), category.display_name
+  end
+
+  test "debt_payment_category is idempotent across envelope mode round trips" do
+    category = @family.debt_payment_category
+
+    @family.deactivate_envelope_mode!
+    @family.activate_envelope_mode!
+
+    assert_equal category, @family.reload.debt_payment_category
+  end
+
+  test "the system category name is disambiguated when the family already uses it" do
+    @family.categories.create!(name: I18n.t("models.category.debt_payment"), color: "#123456")
+
+    category = @family.debt_payment_category
+
+    assert category.persisted?
+    assert_not_equal I18n.t("models.category.debt_payment"), category.name
+    assert_equal I18n.t("models.category.debt_payment"), category.display_name
+  end
 end

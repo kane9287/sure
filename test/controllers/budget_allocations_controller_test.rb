@@ -100,6 +100,30 @@ class BudgetAllocationsControllerTest < ActionDispatch::IntegrationTest
     assert BudgetCategory.find(budget_category.id).budgeted?
   end
 
+  test "the built-in debt envelope can be funded" do
+    debt_payment = @family.debt_payment_category
+
+    assert_difference -> { @family.budget_allocations.count }, 1 do
+      post_allocation(kind: "fund", amount: "300", category: debt_payment)
+    end
+
+    assert_equal 300, assigned_this_period(debt_payment)
+  end
+
+  test "money can be moved out of an over-reserved debt envelope" do
+    debt_payment = @family.debt_payment_category
+    fund(400, category: debt_payment)
+    before = unassigned_pool
+
+    post budget_budget_allocations_path(@budget), params: {
+      budget_allocation: { category_id: @category.id, from_category_id: debt_payment.id, amount: "150" }
+    }
+
+    assert_equal 250, assigned_this_period(debt_payment)
+    assert_equal 150, assigned_this_period
+    assert_equal before, unassigned_pool
+  end
+
   private
     def post_allocation(kind:, amount:, category: @category)
       post budget_budget_allocations_path(@budget), params: {

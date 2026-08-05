@@ -186,7 +186,7 @@ class GoalsController < ApplicationController
     end
 
     def linkable_categories
-      Current.family.categories.alphabetically_by_hierarchy.to_a
+      Current.family.categories.user_selectable.alphabetically_by_hierarchy.to_a
     end
 
     def sync_linked_accounts!(goal, accounts, allocations = {})

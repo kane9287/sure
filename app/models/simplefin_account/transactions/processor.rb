@@ -67,7 +67,7 @@ class SimplefinAccount::Transactions::Processor
           account.family.categories.bootstrap!
         end
 
-        account.family.categories
+        account.family.categories.user_selectable
       end
     end
 
