@@ -14,11 +14,7 @@ module BudgetsHelper
 
     def build_budget_categories_view_state(budget)
       uncategorized_budget_category = budget.uncategorized_budget_category
-      # Built-in envelopes only mean something in envelope mode, where they get
-      # a dedicated row on the allocation screen. A cap-mode budget would show
-      # a spending cap for a category nothing can be categorized into.
-      visible_budget_categories = budget.budget_categories.reject { |bc| bc.category.system? }
-      all_category_groups = BudgetCategory::Group.for(visible_budget_categories)
+      all_category_groups = BudgetCategory::Group.for(budget.budget_categories)
 
       over_budget_groups = if budget.initialized?
         filtered_groups_for(all_category_groups) { |budget_category| budget_category.any_over_budget? }

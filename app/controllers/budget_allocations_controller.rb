@@ -5,15 +5,14 @@ class BudgetAllocationsController < ApplicationController
   # Moves money into or out of an envelope. Every path lands in the same
   # append-only BudgetAllocation ledger; only the arithmetic differs.
   #
+  #   kind: "fund"  -- additive, Unassigned -> envelope. The row's Add button.
+  #   kind: "sweep" -- additive, envelope -> Unassigned (stored negative). The
+  #                    row's Remove button. Unlike "set" this can pull out
+  #                    balance carried in from earlier periods, not just what
+  #                    was assigned within this one.
   #   kind: "set"   -- absolute. Makes this period's assigned total equal
-  #                    :amount, posting only the difference: a fund when the
-  #                    envelope is under it, a sweep back to Unassigned when
-  #                    it's over. This is what the envelope row's amount box
-  #                    submits, so retyping the number already on screen is a
-  #                    no-op instead of doubling the envelope, and reducing an
-  #                    envelope mid-period is just typing a smaller number.
-  #   kind: "fund"  -- additive, Unassigned -> envelope.
-  #   kind: "sweep" -- additive, envelope -> Unassigned (stored negative).
+  #                    :amount, posting only the difference. No longer used by
+  #                    the UI, but kept as a supported ledger operation.
   #
   # from_category_id takes precedence over kind and atomically moves :amount
   # between two envelopes (sweep the source, fund the destination), leaving the

@@ -69,18 +69,6 @@ en:
       allocate: "Allocate"
       percent_assigned: "%{percent} assigned"
   budget_categories:
-    envelope_debt_payment_row:
-      subtitle: Holds cash for purchases you've already made on credit
-      reserved: Reserved
-      total_debt: "Total card debt: %{amount}"
-      carried_debt_hint: Debt from before you started envelope budgeting isn't
-        reserved here — it's paid down through your debt payoff plan.
-      shortfall: "Unfunded: %{amount}"
-      shortfall_hint: Card payments made without assigning for them
-      plan_minimum: "Plan minimum: %{amount}"
-      assign_label: Assign
-      assign_action: Assign
-      assign_hint: Add what your cash flow allows
     allocation_progress:
       budget_exceeded_html: 'Budget exceeded by <span class="text-red-500 privacy-sensitive">%{amount}</span>'
       left_to_allocate: left to allocate
@@ -101,7 +89,7 @@ en:
       title: "Edit your category budgets"
       description: "Adjust category budgets to set spending limits. Unallocated funds will be automatically assigned as uncategorized."
       envelope_title: "Assign your Unassigned money"
-      envelope_description: "Each box holds what you've assigned this month — raise it to fund the envelope, lower it to send money back to Unassigned. Whatever you don't spend carries forward to next month."
+      envelope_description: "Enter an amount and Add it to an envelope, or Remove it to send money back to Unassigned. Whatever you don't spend carries forward to next month."
     envelope_category_details:
       assigned: "Assigned this month"
       available: "Available"
@@ -111,10 +99,13 @@ en:
     envelope_allocation:
       done: "Done"
     envelope_category_row:
-      assigned: "Assigned this month"
+      assigned_amount: "%{amount} assigned this month"
       available: "Available"
       overspent_by: "%{amount} overspent"
-      update: "Update"
+      add: "Add"
+      remove: "Remove"
+      automatic: "Automatic"
+      automatic_hint: "Tracks what you've charged but not yet paid"
       move_money: "Move money from another envelope"
       move_from_placeholder: "Move from…"
       move: "Move"

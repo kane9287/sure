@@ -33,7 +33,11 @@
           <%= render "budget_categories/allocation_progress", budget: @budget %>
 
           <div class="space-y-4 mb-4">
-            <% BudgetCategory::Group.for(@budget_categories).sort_by(&:name).each do |group| %>
+            <%# Cap mode sets spending limits per category, and nothing can be
+                categorized into a built-in envelope, so a cap for one would do
+                nothing. They only carry meaning in envelope mode. %>
+            <% cap_budget_categories = @budget_categories.reject { |bc| bc.category.system? } %>
+            <% BudgetCategory::Group.for(cap_budget_categories).sort_by(&:name).each do |group| %>
               <div class="space-y-4">
                 <%= render "budget_categories/budget_category_form", budget_category: group.budget_category %>
 
