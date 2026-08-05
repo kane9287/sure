@@ -1,10 +1,43 @@
 class Account::ProviderImportAdapter
+  # How far back the manual-capture matcher will look at incoming provider
+  # transactions on a steady-state sync. Keeping this tight is a performance guard as
+  # much as a correctness one — it short-circuits before any query runs.
+  MATCH_RECENCY_DAYS = 7
+
+  # ...except on an account's very first provider sync, which is exactly the case the
+  # narrow window gets wrong. Someone who tracked an account by hand for a month and
+  # then linked a provider gets the whole overlap back as duplicates: the exact-match
+  # claim below handles same-date/same-amount rows, but tips and date drift older than
+  # a week never reach the review queue.
+  #
+  # This is self-limiting by construction. The window is chosen per-adapter from whether
+  # the account has ever received provider data, so every sync after the first is back to
+  # MATCH_RECENCY_DAYS automatically — there is nothing to revert and no expiry job.
+  #
+  # Anchored to Entry::MANUAL_CAPTURE_ELIGIBILITY_DAYS because TransactionReconciliation
+  # draws its candidates from Entry.manual_capture. Note the two filter different columns
+  # (that one `created_at`, this one transaction `date`), so it's a defensible anchor
+  # rather than a hard ceiling.
+  BACKFILL_MATCH_RECENCY_DAYS = Entry::MANUAL_CAPTURE_ELIGIBILITY_DAYS
+
   attr_reader :account, :skipped_entries
 
   def initialize(account)
     @account = account
     @skipped_entries = []
+    # Snapshot before any row is processed. The exact-match claim in #import_transaction
+    # persists an external_id and returns early, so a lazily-memoized check would answer
+    # differently depending on which row happened to come first.
+    @match_recency_days = if account.entries.where.not(external_id: nil).exists?
+      MATCH_RECENCY_DAYS
+    else
+      BACKFILL_MATCH_RECENCY_DAYS
+    end
   end
+
+  # How far back this adapter will hand rows to the reconciler. Wide on an account's
+  # first provider sync, narrow forever after.
+  attr_reader :match_recency_days
 
   # Resets skipped entries tracking (call at start of new sync batch)
   def reset_skipped_entries!
@@ -86,18 +119,60 @@ class Account::ProviderImportAdapter
       if entry.new_record?
         duplicate = find_duplicate_transaction(date: date, amount: amount, currency: currency)
         if duplicate
-          # Check if duplicate is protected - if so, link but don't modify
           if duplicate.protected_from_sync?
-            duplicate.update!(external_id: external_id, source: source)
+            # Do NOT claim a protected entry's identity here. Stamping external_id/source
+            # via a raw update (as this used to do) never clears user_modified and never
+            # writes provider extra data, so the entry ends up permanently indistinguishable
+            # from a real synced row in the UI (still shows "protected") while being silently
+            # dropped from Entry.manual_capture forever — invisible to every future duplicate
+            # check, the reconciliation Matcher, and manual match/merge tools alike, with no
+            # trace beyond this in-memory skip. Leave it untouched instead: the incoming
+            # transaction becomes its own entry below, and if manual reconciliation is enabled,
+            # the Matcher block further down gets a fair, auditable shot at proposing a
+            # human-reviewed match between the two.
             record_skip(duplicate, determine_skip_reason(duplicate) || "protected")
-            return duplicate
-          end
+          else
+            # "Claim" the unprotected duplicate by updating its external_id and source
+            # This prevents future duplicate checks from matching it again
+            entry = duplicate
 
-          # "Claim" the unprotected duplicate by updating its external_id and source
-          # This prevents future duplicate checks from matching it again
-          entry = duplicate
-          entry.assign_attributes(external_id: external_id, source: source)
+            # The provider writes below own name/amount/date/merchant, but not the
+            # category the user picked for this purchase. Pin it before the
+            # fall-through so `enrich_attribute(:category_id, ...)` declines it.
+            entry.preserve_manual_category!
+
+            entry.assign_attributes(external_id: external_id, source: source)
+          end
         end
+      end
+
+      # The exact-match claim above only fires on identical date AND amount, so
+      # a real point-of-sale capture — entered at the register, before the tip
+      # and before the bank posted it — slips past it and becomes a duplicate.
+      # Look for one here, while the provider row still doesn't exist.
+      #
+      # A local rather than an ivar: the adapter is reused for every row in a
+      # sync batch, and a leaked decision would attach the wrong pair.
+      pending_review = nil
+      if entry.new_record? && manual_reconciliation_enabled? &&
+         date.to_date >= Date.current - match_recency_days
+        decision = TransactionReconciliation::Matcher.new(
+          account: account,
+          mode: account.family.manual_reconciliation_mode
+        ).call(
+          external_id: external_id,
+          source: source,
+          amount: amount,
+          currency: currency,
+          date: date,
+          name: name,
+          merchant_id: merchant&.id
+        )
+
+        # Record only. The `:auto` outcome is unreachable until the family mode
+        # can be set to "auto", which lands with the claim-in-place branch —
+        # until then every match, however confident, goes to a human.
+        pending_review = decision if decision&.review?
       end
 
       if entry.new_record? && !incoming_pending
@@ -125,6 +200,12 @@ class Account::ProviderImportAdapter
           old_pending_external_id = pending_match.external_id
           pending_entry_date      = pending_match.date
           entry = pending_match
+
+          # Someone who categorised the pending row keeps that category when the
+          # booked version lands. `lock_attr!` issues its own `update!`, so it
+          # runs before the in-memory `extra` assignment below rather than after.
+          entry.preserve_manual_category!
+
           entry.assign_attributes(external_id: external_id)
 
           # Clear the pending flag so this entry no longer shows as pending after being claimed
@@ -190,8 +271,12 @@ class Account::ProviderImportAdapter
         entry.transaction.enrich_attribute(:merchant_id, merchant.id, source: source)
       end
 
-      if notes.present? && entry.respond_to?(:enrich_attribute)
-        entry.enrich_attribute(:notes, notes, source: source)
+      if notes.present?
+        # `ignore_locks` is deliberate: the merged value contains the user's note
+        # verbatim, so the lock's purpose — never lose what the user wrote — is
+        # satisfied by construction rather than by refusing the write. On a new
+        # entry there is nothing to merge and the memo lands as-is.
+        entry.enrich_attribute(:notes, entry.notes_merged_with(notes), source: source, ignore_locks: true)
       end
 
       # Persist extra provider metadata on the transaction (non-enriched; always merged)
@@ -235,7 +320,13 @@ class Account::ProviderImportAdapter
           entry.transaction.assign_attributes(investment_activity_label: detected_label)
         end
 
-        if auto_kind.present?
+        # `assign_attributes` bypasses Enrichable, so the lock has to be checked by
+        # hand here the way the two branches around this one check `blank?`. Without
+        # it a sync reclassifies a user's `standard` transaction as a transfer kind,
+        # and `transfer?` rows render the transfer label instead of their category
+        # (_transaction.html.erb:198) and drop out of budget analytics — the category
+        # is still on the row, but the user sees it as uncategorized.
+        if auto_kind.present? && entry.transaction.enrichable?(:kind)
           entry.transaction.assign_attributes(kind: auto_kind)
         end
 
@@ -246,6 +337,21 @@ class Account::ProviderImportAdapter
 
       entry.save!
       entry.transaction.save! if entry.transaction.changed?
+
+      # Deferred until both sides are persisted, so the review card can point at
+      # real rows. A failure here must not take the sync down with it — the
+      # provider transaction itself imported fine.
+      if pending_review
+        begin
+          TransactionReconciliation::Merger.record_review!(
+            decision: pending_review,
+            provider_entry: entry,
+            family: account.family
+          )
+        rescue ActiveRecord::RecordInvalid => e
+          Rails.logger.warn("Failed to record reconciliation review for entry #{entry.id}: #{e.message}")
+        end
+      end
 
       # Auto-resolve any open Goal pledges on this account whose tolerance
       # window matches the posted transaction. Idempotent via the partial-unique
@@ -1024,6 +1130,25 @@ class Account::ProviderImportAdapter
       return @account_linked_to_any_goal if defined?(@account_linked_to_any_goal)
 
       @account_linked_to_any_goal = account.goal_accounts.exists?
+    end
+
+    # Memoized for the same reason as above: a 2k-row historical import must not
+    # pay a family lookup per row.
+    #
+    # Two gates doing different jobs. `manual_reconciliation_mode` is the
+    # family's standing answer to "may provider data be reconciled against our
+    # manual entries at all"; the preview rollup keeps the feature dark for
+    # families where nobody has opted in. Gating background work on the family
+    # rollup is the prescribed pattern (docs/llm-guides/gating-a-preview-feature.md)
+    # — it is only *UI* that must never be gated on it. The preview half goes
+    # away at GA; the mode column stays.
+    def manual_reconciliation_enabled?
+      return @manual_reconciliation_enabled if defined?(@manual_reconciliation_enabled)
+
+      family = account.family
+
+      @manual_reconciliation_enabled =
+        family.manual_reconciliation_mode != "off" && family.preview_features_enabled?
     end
 
     def clear_pending_flags_from_extra(extra)

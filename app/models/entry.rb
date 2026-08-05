@@ -84,6 +84,42 @@ class Entry < ApplicationRecord
     pending.where("entries.date < ?", days.days.ago.to_date)
   }
 
+  # How far back a manual entry stays eligible to be matched against an
+  # incoming provider transaction. Bounds the candidate pool only — date
+  # proximity is the scorer's job.
+  MANUAL_CAPTURE_ELIGIBILITY_DAYS = 45
+
+  # Entries a person typed in themselves and that no provider has claimed yet:
+  # the point-of-sale capture waiting for its bank counterpart to post.
+  #
+  # Derived rather than flagged. Manual entries are created from four-plus call
+  # sites (UI, API, rules, recurring auto-log); a boolean column would have to
+  # be set at every one, would drift the first time a fifth appeared, and would
+  # cover zero existing rows. This predicate works retroactively on day one,
+  # and expiry is free — a row simply falls out of the scope once it ages past
+  # the eligibility window, with no sweep and no writes.
+  #
+  # `created_at`, deliberately not `date`: for a POS capture created_at is the
+  # purchase moment, while `date` may be backdated during a cash catch-up.
+  scope :manual_capture, ->(created_since: MANUAL_CAPTURE_ELIGIBILITY_DAYS.days.ago) {
+    joins(<<~SQL.squish)
+      INNER JOIN transactions
+      ON transactions.id = entries.entryable_id
+      AND entries.entryable_type = 'Transaction'
+    SQL
+      .where(entries: {
+        external_id: nil,   # never already claimed by a provider
+        source: nil,        # excludes idempotent API rows, which set both
+        import_id: nil,     # excludes CSV/QIF/PDF/trade imports...
+        import_locked: false, # ...which arrive via two different code paths
+        excluded: false,
+        parent_entry_id: nil
+      })
+      .where(transactions: { transfer_id: nil })
+      .where("entries.created_at >= ?", created_since)
+      .excluding_split_parents
+  }
+
   # Family-scoped query for Enrichable#clear_ai_cache
   def self.family_scope(family)
     joins(:account).where(accounts: { family_id: family.id })
@@ -334,6 +370,99 @@ class Entry < ApplicationRecord
   def mark_user_modified!
     return true if user_modified?
     update!(user_modified: true)
+  end
+
+  # Hands this entry's identity over to a provider transaction that represents
+  # the same purchase, so one row survives instead of two.
+  #
+  # The narrow carve-out in `protected_from_sync?` for reconciliation: clearing
+  # `user_modified` does NOT make the entry unprotected. `enrich_attributes`
+  # still consults `locked_attributes` field by field, and a manual entry has
+  # its name, notes, category and merchant locked at creation by
+  # `lock_saved_attributes!`. Clearing the entry-level flag only stops the
+  # coarse whole-entry short-circuit, so future syncs can still apply
+  # legitimate corrections to the two fields the provider now owns.
+  #
+  # @raise [ArgumentError] if the entry has already been claimed
+  # @return [Boolean] true
+  def claim_by_provider!(external_id:, source:, amount:, date:)
+    raise ArgumentError, "entry #{id} is already claimed by #{self.source}" if self.external_id.present?
+
+    self.class.transaction do
+      lock!
+
+      # Re-check under the lock. Last line of defence is the partial unique
+      # index on (account_id, source, external_id); callers rescue
+      # RecordNotUnique and fall through to creating an ordinary provider row.
+      raise ActiveRecord::RecordNotUnique, "entry #{id} claimed concurrently" if self.external_id.present?
+
+      # Categories set outside a controller — CSV/QIF import, seeds, the
+      # assistant — never went through `lock_saved_attributes!`, so pin here
+      # instead of relying on how the row happened to be created.
+      preserve_manual_category!
+
+      # Amount and date now belong to the provider, so release just those two
+      # locks. Written as one update rather than update! + two unlock_attr!
+      # calls so the row is touched once and can't be observed mid-claim.
+      update!(
+        external_id: external_id,
+        source: source,
+        amount: amount,
+        date: date,
+        user_modified: false,
+        locked_attributes: locked_attributes.except("amount", "date")
+      )
+    end
+
+    true
+  end
+
+  # Pins the category a human already chose, so the provider writes that follow a
+  # claim can't replace it. A claim deliberately takes the provider's description,
+  # amount, date and merchant — that's what makes it a claim rather than a
+  # duplicate — but the category is the user's answer, not the bank's.
+  #
+  # A blank category is left unlocked on purpose: the provider, a rule or the
+  # auto-categorizer should still be free to fill one in.
+  #
+  # Deliberately an entryable-level lock. `protected_from_sync?` reads only
+  # excluded/user_modified/import_locked on the entry and never consults
+  # `Transaction#locked_attributes`, so this cannot push a row into the skip
+  # branch and re-create the duplicate the claim exists to prevent.
+  #
+  # @return [void]
+  def preserve_manual_category!
+    return unless transaction?
+    return if entryable.category_id.blank? || entryable.locked?(:category_id)
+
+    entryable.lock_attr!(:category_id)
+  end
+
+  # Combines the note a user wrote with the memo a provider sent, rather than
+  # letting either displace the other. Returns what `notes` should hold.
+  #
+  # Idempotent by inspection rather than by bookkeeping: a sync re-delivers the
+  # same memo every run, and `include?` is enough because the memo is appended
+  # verbatim.
+  #
+  # @param incoming [String, nil] the provider's memo
+  # @return [String] the merged notes
+  def notes_merged_with(incoming)
+    incoming = incoming.to_s.strip
+    existing = notes.to_s.strip
+
+    return existing if incoming.blank?
+    return incoming if existing.blank?
+    return existing if existing.include?(incoming)
+
+    "#{existing}\n\n#{incoming}"
+  end
+
+  # Whether a provider transaction is waiting on a human to say it's the same
+  # purchase as this one. Fallback for surfaces that render a single entry; the
+  # transactions index preloads a lookup instead, since this is a join per row.
+  def reconciliation_pending?
+    TransactionReconciliation.actionable.exists?(manual_entry_id: id)
   end
 
   # Returns the reason this entry is protected from sync, or nil if not protected.

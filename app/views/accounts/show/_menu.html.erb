@@ -17,6 +17,17 @@
       <% menu.with_item(variant: "button", text: t(".exclude_from_reports"), href: toggle_exclude_from_reports_account_path(account), method: :patch, icon: "eye-off", data: { turbo_frame: :_top }) %>
     <% end %>
 
+    <% if preview_features_enabled? && account.family.manual_reconciliation_mode != "off" %>
+      <% menu.with_item(
+        variant: "button",
+        text: t(".rescan_reconciliation"),
+        href: rescan_reconciliation_account_path(account),
+        method: :post,
+        icon: "search",
+        data: { turbo_frame: :_top }
+      ) %>
+    <% end %>
+
     <% if account.supports_trades? %>
       <% menu.with_item(
         variant: "link",

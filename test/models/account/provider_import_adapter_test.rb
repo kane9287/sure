@@ -86,6 +86,182 @@ class Account::ProviderImportAdapterTest < ActiveSupport::TestCase
                  "a repayment on a Loan account must stay loan_payment, not the provider's funds_movement"
   end
 
+  # Reclassifying a user's transaction to a transfer kind hides its category in the
+  # ledger and drops it out of budget analytics, so the sync has to lose to a lock
+  # here the same way it does for every attribute that goes through Enrichable.
+  test "a locked kind is not reclassified by the provider" do
+    entry = @adapter.import_transaction(
+      external_id: "up_transfer_locked",
+      amount: -50.00,
+      currency: "USD",
+      date: Date.today,
+      name: "Transfer to Savings",
+      source: "up"
+    )
+    entry.transaction.update!(kind: "standard")
+    entry.transaction.lock_attr!(:kind)
+
+    @adapter.import_transaction(
+      external_id: "up_transfer_locked",
+      amount: -50.00,
+      currency: "USD",
+      date: Date.today,
+      name: "Transfer to Savings",
+      source: "up",
+      kind: "funds_movement"
+    )
+
+    assert_equal "standard", entry.reload.transaction.kind
+  end
+
+  # The claim path deliberately hands name/amount/date/merchant to the provider.
+  # Category and notes are the two exceptions: they are the user's answer, not the
+  # bank's, and a claim must not quietly reclassify a categorised row.
+  test "claiming a manual duplicate keeps the category the user chose" do
+    manual = create_manual_entry(name: "Chipotle", amount: 40.11, category: categories(:food_and_drink))
+
+    assert_no_difference "@account.entries.count" do
+      claimed = @adapter.import_transaction(
+        external_id: "plaid_claim_category",
+        amount: 40.11,
+        currency: "USD",
+        date: manual.date,
+        name: "CHIPOTLE 1234",
+        source: "plaid",
+        category_id: categories(:income).id
+      )
+
+      assert_equal manual.id, claimed.id
+    end
+
+    manual.reload
+    assert_equal categories(:food_and_drink), manual.transaction.category
+    assert_equal "CHIPOTLE 1234", manual.name
+  end
+
+  # The pin must not freeze uncategorised rows — a blank category is still the
+  # provider's (or a rule's) to fill in.
+  test "claiming a manual duplicate still accepts a category when there is none" do
+    manual = create_manual_entry(name: "Chipotle", amount: 41.11)
+
+    @adapter.import_transaction(
+      external_id: "plaid_claim_blank_category",
+      amount: 41.11,
+      currency: "USD",
+      date: manual.date,
+      name: "CHIPOTLE 1234",
+      source: "plaid",
+      category_id: categories(:income).id
+    )
+
+    assert_equal categories(:income), manual.reload.transaction.category
+  end
+
+  test "a category set on a pending entry survives the pending to booked claim" do
+    pending = @adapter.import_transaction(
+      external_id: "simplefin_pending_category",
+      amount: 42.11,
+      currency: "USD",
+      date: Date.current,
+      name: "CHIPOTLE",
+      source: "simplefin",
+      extra: { "simplefin" => { "pending" => true } }
+    )
+    pending.transaction.update!(category: categories(:food_and_drink))
+
+    booked = @adapter.import_transaction(
+      external_id: "simplefin_booked_category",
+      amount: 42.11,
+      currency: "USD",
+      date: Date.current,
+      name: "CHIPOTLE 1234",
+      source: "simplefin",
+      category_id: categories(:income).id
+    )
+
+    assert_equal pending.id, booked.id
+    assert_equal categories(:food_and_drink), booked.reload.transaction.category
+  end
+
+  test "claiming a manual duplicate appends the provider memo to the user's note" do
+    manual = create_manual_entry(name: "Chipotle", amount: 43.11, notes: "split with Sam")
+
+    @adapter.import_transaction(
+      external_id: "plaid_claim_notes",
+      amount: 43.11,
+      currency: "USD",
+      date: manual.date,
+      name: "CHIPOTLE 1234",
+      source: "plaid",
+      notes: "CHIPOTLE 1234 PORTLAND OR"
+    )
+
+    assert_equal "split with Sam\n\nCHIPOTLE 1234 PORTLAND OR", manual.reload.notes
+  end
+
+  test "re-importing the same memo does not append it twice" do
+    manual = create_manual_entry(name: "Chipotle", amount: 44.11, notes: "split with Sam")
+
+    2.times do
+      @adapter.import_transaction(
+        external_id: "plaid_claim_notes_idempotent",
+        amount: 44.11,
+        currency: "USD",
+        date: manual.date,
+        name: "CHIPOTLE 1234",
+        source: "plaid",
+        notes: "CHIPOTLE 1234 PORTLAND OR"
+      )
+    end
+
+    assert_equal "split with Sam\n\nCHIPOTLE 1234 PORTLAND OR", manual.reload.notes
+  end
+
+  # The regression guard for the constraint this fix had to respect: pinning the
+  # category must not make the entry protected, or the next sync skips it and
+  # writes a second row instead of claiming this one.
+  test "pinning the category does not make the entry protected from sync" do
+    manual = create_manual_entry(name: "Chipotle", amount: 45.11, category: categories(:food_and_drink))
+
+    @adapter.import_transaction(
+      external_id: "plaid_claim_not_protected",
+      amount: 45.11,
+      currency: "USD",
+      date: manual.date,
+      name: "CHIPOTLE 1234",
+      source: "plaid"
+    )
+
+    assert_not_predicate manual.reload, :protected_from_sync?
+  end
+
+  # Regression guard: a protected duplicate used to be silently stamped with the
+  # incoming external_id/source via a raw update, which never cleared
+  # user_modified and never wrote provider extra data — leaving it forever
+  # indistinguishable from a real synced row (still "protected" in the UI) while
+  # being permanently dropped from Entry.manual_capture, invisible to every
+  # future duplicate check, the reconciliation Matcher, and manual match tools.
+  test "does not claim a protected duplicate's identity" do
+    manual = create_manual_entry(name: "Interest Charge", amount: 2.84, category: categories(:food_and_drink))
+    manual.mark_user_modified!
+
+    assert_difference "@account.entries.count", 1 do
+      @adapter.import_transaction(
+        external_id: "simplefin_protected_dup",
+        amount: 2.84,
+        currency: "USD",
+        date: manual.date,
+        name: "Interest Charge - INTEREST CHARGE ON PURCHASES",
+        source: "simplefin"
+      )
+    end
+
+    manual.reload
+    assert_nil manual.external_id
+    assert_nil manual.source
+    assert_predicate manual, :protected_from_sync?
+  end
+
   test "updates existing transaction instead of creating duplicate" do
     # Create initial transaction
     entry = @adapter.import_transaction(
@@ -1549,4 +1725,17 @@ class Account::ProviderImportAdapterTest < ActiveSupport::TestCase
         "pending flag must be cleared even for user-modified entries"
     end
   end
+
+  private
+    # A hand-entered row: no external_id, no source, nothing the provider owns yet.
+    def create_manual_entry(name:, amount:, notes: nil, category: nil)
+      @account.entries.create!(
+        date: Date.current,
+        amount: amount,
+        currency: "USD",
+        name: name,
+        notes: notes,
+        entryable: Transaction.new(category: category)
+      )
+    end
 end
