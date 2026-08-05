@@ -179,4 +179,21 @@ class TransactionTest < ActiveSupport::TestCase
 
     assert_equal securities(:msft), transaction.activity_security
   end
+
+  test "a transaction cannot be categorized into a built-in category" do
+    # The real enforcement point. Filtering the ~20 category pickers is
+    # cosmetic — bulk edit, rules, importers, the assistant and the API all
+    # write category_id straight through.
+    debt_payment = families(:dylan_family).debt_payment_category
+    transaction = Transaction.new(category: debt_payment)
+
+    assert_not transaction.valid?
+    assert_includes transaction.errors.attribute_names, :category
+  end
+
+  test "a transaction can still be categorized into an ordinary category" do
+    transaction = Transaction.new(category: categories(:food_and_drink))
+
+    assert transaction.valid?
+  end
 end

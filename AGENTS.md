@@ -90,6 +90,7 @@ When a provider sync/import path hits a recoverable error or suspicious partial 
   - Lunchflow runtime toggles live in `config/initializers/lunchflow.rb` via `Rails.configuration.x.lunchflow.*`.
   - ENV-backed keys:
     - `SIMPLEFIN_INCLUDE_PENDING=1` (forces `pending=1` on SimpleFIN fetches when caller didn’t specify a `pending:` arg)
+    - `SIMPLEFIN_IMPORT_NOTES=0` (stops SimpleFIN writing its memo to `Entry#notes`; defaults on, also toggleable at `/settings/hosting`)
     - `SIMPLEFIN_DEBUG_RAW=1` (logs raw payload returned by SimpleFIN)
     - `LUNCHFLOW_INCLUDE_PENDING=1` (forces `include_pending=true` on Lunchflow API requests)
     - `LUNCHFLOW_DEBUG_RAW=1` (logs raw payload returned by Lunchflow)

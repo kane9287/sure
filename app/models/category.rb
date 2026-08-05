@@ -16,10 +16,14 @@ class Category < ApplicationRecord
   validates :name, :color, :lucide_icon, :family, presence: true
   validates :color, format: { with: /\A#[0-9A-Fa-f]{6}\z/ }
   validates :name, uniqueness: { scope: :family_id }
+  validates :system_key, inclusion: { in: -> (_) { SYSTEM_KEYS.keys } }, allow_nil: true
+  validates :system_key, uniqueness: { scope: :family_id }, allow_nil: true
 
   validate :category_level_limit
+  validate :system_category_is_immutable, on: :update
 
   before_save :inherit_color_from_parent
+  before_destroy :prevent_system_category_destroy, prepend: true
 
   scope :alphabetically, -> { order(:name) }
   scope :alphabetically_by_hierarchy, -> {
@@ -29,6 +33,10 @@ class Category < ApplicationRecord
       .order(:name)
   }
   scope :roots, -> { where(parent_id: nil) }
+  # Categories a user may pick for a transaction, rule, import mapping or goal.
+  # System categories are excluded: they're maintained by the app and their
+  # balance is derived, so a manual assignment would double-count against it.
+  scope :user_selectable, -> { where(system_key: nil) }
   # Legacy scopes - classification removed; these now return all categories
   scope :incomes, -> { all }
   scope :expenses, -> { all }
@@ -88,6 +96,22 @@ class Category < ApplicationRecord
     /child|kid|baby|infant|daycare/                                => "baby",
     /cloth|apparel|fashion|wear/                                   => "shirt",
     /ticket/                                                       => "ticket"
+  }.freeze
+
+  # Categories the app owns, keyed by the value stored in `system_key`. The
+  # stored `name` is only a fallback for old data and raw SQL — everything
+  # user-facing renders `display_name`, which resolves `name_key` in the
+  # current locale.
+  #
+  # debt_payment: envelope mode's credit/debt reserve. Its balance is derived
+  # from liability-account activity (IncomeStatement::LiabilityReserve), so
+  # nothing may be categorized into it by hand.
+  SYSTEM_KEYS = {
+    "debt_payment" => {
+      name_key: "models.category.debt_payment",
+      color: PAYMENT_COLOR,
+      lucide_icon: "credit-card"
+    }
   }.freeze
 
   # Category name keys for i18n
@@ -367,7 +391,18 @@ class Category < ApplicationRecord
     parent_name.present? ? "#{parent_name} > #{name}" : name
   end
 
+  # Predicate: is this a built-in category the app maintains?
+  def system?
+    system_key.present?
+  end
+
+  def debt_payment?
+    system_key == "debt_payment"
+  end
+
   def display_name
+    return I18n.t(SYSTEM_KEYS.fetch(system_key)[:name_key], default: name) if system?
+
     self.class.localized_default_name_for(name)
   end
 
@@ -395,6 +430,29 @@ class Category < ApplicationRecord
       if (subcategory? && parent&.subcategory?) || (parent? && subcategory?)
         errors.add(:parent, "can't have more than 2 levels of subcategories")
       end
+    end
+
+    # A system category's identity has to stay fixed — the app looks it up by
+    # system_key and renders its name from i18n. Color and icon are still the
+    # user's to change, which is why this isn't a blanket readonly.
+    def system_category_is_immutable
+      return unless system? || system_key_was.present?
+
+      errors.add(:system_key, :immutable) if system_key_changed?
+      errors.add(:name, :immutable_for_system_category) if name_changed?
+      errors.add(:parent_id, :immutable_for_system_category) if parent_id_changed?
+    end
+
+    # Family has `has_many :categories, dependent: :destroy`, and a family must
+    # still be able to take its system categories with it. Only a standalone
+    # destroy is blocked — dropping the destroyed_by_association check here
+    # makes families undeletable.
+    def prevent_system_category_destroy
+      return if destroyed_by_association.present?
+      return unless system?
+
+      errors.add(:base, :system_category_undeletable)
+      throw :abort
     end
 
     def monetizable_currency

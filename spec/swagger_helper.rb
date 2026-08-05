@@ -513,12 +513,22 @@ RSpec.configure do |config|
           },
           CategoryDetail: {
             type: :object,
-            required: %w[id name color icon subcategories_count created_at updated_at],
+            required: %w[id name color icon system subcategories_count created_at updated_at],
             properties: {
               id: { type: :string, format: :uuid },
               name: { type: :string },
               color: { type: :string },
               icon: { type: :string },
+              system: {
+                type: :boolean,
+                description: 'Built-in category maintained by the app. Transactions cannot be assigned to it, so clients must exclude it from category pickers.'
+              },
+              system_key: {
+                type: :string,
+                nullable: true,
+                enum: %w[debt_payment],
+                description: 'Stable, locale-independent identifier for a built-in category. Null for user categories.'
+              },
               parent: { '$ref' => '#/components/schemas/CategoryParent', nullable: true },
               subcategories_count: { type: :integer, minimum: 0 },
               created_at: { type: :string, format: :'date-time' },

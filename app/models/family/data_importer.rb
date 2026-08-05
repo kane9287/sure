@@ -406,12 +406,21 @@ class Family::DataImporter
         created = category.blank?
         category ||= @family.categories.build
 
-        category.assign_attributes(
+        attrs = {
           name: data["name"],
           color: data["color"] || Category::UNCATEGORIZED_COLOR,
           classification_unused: data["classification_unused"] || data["classification"] || "expense",
           lucide_icon: data["lucide_icon"] || "shapes"
-        )
+        }
+
+        # Preserve built-in status across a round-trip, but never mint a second
+        # holder of the same key: the family may already have one (created by
+        # Family#ensure_envelope_system_categories!), and system_key is unique
+        # per family.
+        system_key = importable_system_key(data["system_key"], category)
+        attrs[:system_key] = system_key if system_key.present? || category&.system?
+
+        category.assign_attributes(attrs)
         category.save!
         map_source!(:categories, old_id, category)
         increment_summary("Category", created ? :created : :updated)
@@ -427,6 +436,19 @@ class Family::DataImporter
         category = @family.categories.find(new_id)
         category.update!(parent_id: new_parent_id)
       end
+    end
+
+    # Returns the system_key this incoming record may claim, or nil. A key the
+    # family already assigned to a different category is dropped so the import
+    # degrades to an ordinary category instead of failing the whole restore.
+    def importable_system_key(key, category)
+      return nil if key.blank?
+      return nil unless Category::SYSTEM_KEYS.key?(key)
+
+      holder = @family.categories.find_by(system_key: key)
+      return nil if holder && holder.id != category&.id
+
+      key
     end
 
     def import_tags(records)
@@ -1092,7 +1114,7 @@ class Family::DataImporter
 
       # Map category names to IDs
       if condition_type == "transaction_category"
-        category = @family.categories.find_by(name: value)
+        category = @family.categories.user_selectable.find_by(name: value)
         category ||= @family.categories.create!(
           name: value,
           color: Category::UNCATEGORIZED_COLOR,
@@ -1120,7 +1142,7 @@ class Family::DataImporter
 
       # Map category names to IDs
       if action_type == "set_transaction_category"
-        category = @family.categories.find_by(name: value)
+        category = @family.categories.user_selectable.find_by(name: value)
         category ||= @family.categories.create!(
           name: value,
           color: Category::UNCATEGORIZED_COLOR,

@@ -146,6 +146,10 @@ class Setting < RailsSettings::Base
     simplefin && plaid
   end
   field :syncs_include_pending, type: :boolean, default: SYNCS_INCLUDE_PENDING_DEFAULT
+  # Whether SimpleFIN's memo is stored on the transaction's notes field. Defaults from the
+  # initializer rather than re-reading ENV here so SIMPLEFIN_IMPORT_NOTES has a single parser
+  # (which, unlike the `== "1"` form above, also honours true/yes/on and false/no/off).
+  field :simplefin_import_notes, type: :boolean, default: Rails.configuration.x.simplefin.import_notes
   field :auto_sync_enabled, type: :boolean, default: ENV.fetch("AUTO_SYNC_ENABLED", "1") == "1"
   field :auto_sync_time, type: :string, default: ENV.fetch("AUTO_SYNC_TIME", "02:22")
   field :auto_sync_timezone, type: :string, default: ENV.fetch("AUTO_SYNC_TIMEZONE", "UTC")

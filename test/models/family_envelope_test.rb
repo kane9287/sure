@@ -147,13 +147,20 @@ class FamilyEnvelopeTest < ActiveSupport::TestCase
     assert_equal unassigned_before - 30, @family.unassigned_pool_balance.amount
   end
 
-  test "unassigned_pool_balance satisfies cash == unassigned + envelope balances" do
+  test "spending from a funded envelope leaves the unassigned pool where it was" do
     @family.activate_envelope_mode!
     category = Category.create!(name: "Identity Test #{Time.now.to_f}", family: @family, color: "#222333")
     account = accounts(:depository)
 
     @family.budget_allocations.create!(category: category, amount: 300, currency: "USD", date: Date.current, kind: "fund")
+    @family.reset_envelope_caches!
+    unassigned_before = @family.unassigned_pool_balance.amount
 
+    # Asserting `unassigned == cash - sum(balances)` would be tautological —
+    # that's the definition of unassigned_pool_balance. The property that can
+    # actually fail is that cash and the envelope move together, which needs
+    # accounts.balance moved alongside the Entry (Entry#sync_account_later is
+    # called explicitly, not from a callback, so an Entry alone freezes cash).
     Entry.create!(
       account: account,
       entryable: Transaction.create!(category: category),
@@ -162,16 +169,39 @@ class FamilyEnvelopeTest < ActiveSupport::TestCase
       amount: 120,
       currency: "USD"
     )
+    account.update!(balance: account.balance - 120)
 
     @family.reset_envelope_caches!
 
-    # $300 funded - $120 spent = $180 still reserved in the envelope; every
-    # other dollar of in-budget cash is unassigned.
     assert_equal 180, @family.envelope_balances_by_category[category.id]
-    assert_equal(
-      @family.in_budget_cash_balance.amount - @family.envelope_balances_by_category.values.sum,
-      @family.unassigned_pool_balance.amount
+    assert_equal unassigned_before, @family.unassigned_pool_balance.amount
+  end
+
+  test "subcategory spend is counted once, not once per ancestor" do
+    @family.activate_envelope_mode!
+    parent = categories(:food_and_drink)
+    child = categories(:subcategory)
+    account = accounts(:depository)
+
+    @family.budget_allocations.create!(category: parent, amount: 300, currency: "USD", date: Date.current, kind: "fund")
+    @family.budget_allocations.create!(category: child, amount: 200, currency: "USD", date: Date.current, kind: "fund")
+
+    Entry.create!(
+      account: account,
+      entryable: Transaction.create!(category: child),
+      date: Date.current,
+      name: "Restaurant",
+      amount: 100,
+      currency: "USD"
     )
+
+    @family.reset_envelope_caches!
+
+    # A parent's CategoryTotal#total is own + children, so charging it against
+    # both envelopes would drain $200 of budget for $100 of spend and invent
+    # the difference in the Unassigned pool.
+    assert_equal 100, @family.envelope_balances_by_category[child.id]
+    assert_equal 300, @family.envelope_balances_by_category[parent.id]
   end
 
   test "a goal backed by an in-budget account does not move the unassigned pool" do

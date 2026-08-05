@@ -3,7 +3,7 @@ class CategoryImport < Import
     transaction do
       rows.each do |row|
         category_name = row.name.to_s.strip
-        category = family.categories.find_or_initialize_by(name: category_name)
+        category = family.categories.user_selectable.find_or_initialize_by(name: category_name)
         category.color = row.category_color.presence || category.color || Category::UNCATEGORIZED_COLOR
         category.lucide_icon = row.category_icon.presence || category.lucide_icon || "shapes"
         category.parent = nil
@@ -13,7 +13,7 @@ class CategoryImport < Import
       end
 
       rows.each do |row|
-        category = family.categories.find_by!(name: row.name.to_s.strip)
+        category = family.categories.user_selectable.find_by!(name: row.name.to_s.strip)
         parent = ensure_placeholder_category(row.category_parent)
 
         if parent && parent == category
@@ -114,7 +114,7 @@ class CategoryImport < Import
       trimmed_name = name.to_s.strip
       return if trimmed_name.blank?
 
-      family.categories.find_or_create_by!(name: trimmed_name) do |placeholder|
+      family.categories.user_selectable.find_or_create_by!(name: trimmed_name) do |placeholder|
         placeholder.color = Category::UNCATEGORIZED_COLOR
         placeholder.lucide_icon = "shapes"
       end

@@ -561,7 +561,7 @@ class TransactionsController < ApplicationController
         .alphabetically
         .includes(:account_providers, logo_attachment: :blob)
         .to_a
-      @categories = Current.family.categories.alphabetically.to_a
+      @categories = Current.family.categories.user_selectable.alphabetically.to_a
       @merchants = Current.family.available_merchants_for(Current.user).alphabetically.to_a
       @tags = Current.family.tags.alphabetically.to_a
     end

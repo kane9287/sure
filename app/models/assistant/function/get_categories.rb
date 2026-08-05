@@ -16,7 +16,7 @@ class Assistant::Function::GetCategories < Assistant::Function
   end
 
   def call(params = {})
-    categories = family.categories.alphabetically_by_hierarchy
+    categories = family.categories.user_selectable.alphabetically_by_hierarchy
 
     {
       categories: categories.map { |c|

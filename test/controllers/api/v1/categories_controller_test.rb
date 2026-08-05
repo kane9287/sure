@@ -286,6 +286,36 @@ class Api::V1::CategoriesControllerTest < ActionDispatch::IntegrationTest
     assert_equal "bad_request", body["error"]
   end
 
+  test "index flags built-in categories so clients can exclude them from pickers" do
+    debt_payment = @user.family.debt_payment_category
+
+    get "/api/v1/categories", params: {}, headers: api_headers(read_only_api_key)
+
+    assert_response :success
+    body = JSON.parse(response.body)
+
+    built_in = body["categories"].find { |c| c["id"] == debt_payment.id }
+    assert built_in.present?, "Built-in categories are still listed, just flagged"
+    assert_equal true, built_in["system"]
+    assert_equal "debt_payment", built_in["system_key"]
+
+    ordinary = body["categories"].find { |c| c["id"] == @category.id }
+    assert_equal false, ordinary["system"]
+    assert_nil ordinary["system_key"]
+  end
+
+  test "create rejects a built-in category as a parent" do
+    debt_payment = @user.family.debt_payment_category
+
+    post "/api/v1/categories",
+      params: { category: { name: "Should Fail", color: "#22c55e", icon: "shapes", parent_id: debt_payment.id } },
+      headers: api_headers(read_write_api_key)
+
+    assert_response :unprocessable_entity
+    body = JSON.parse(response.body)
+    assert_equal "unprocessable_entity", body["error"]
+  end
+
   private
 
     def read_write_api_key

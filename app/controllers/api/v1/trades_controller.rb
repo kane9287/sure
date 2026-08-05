@@ -372,7 +372,7 @@ class Api::V1::TradesController < Api::V1::BaseController
         attrs[:investment_activity_label] = label
       end
       if trade_params[:category_id].present?
-        category = current_resource_owner.family.categories.find_by(id: trade_params[:category_id])
+        category = current_resource_owner.family.categories.user_selectable.find_by(id: trade_params[:category_id])
         unless category
           render_validation_error("Category not found or does not belong to your family", [ "category_id is invalid" ])
           return

@@ -5,6 +5,13 @@ json.name category.name
 json.color category.color
 json.icon category.lucide_icon
 
+# Built-in categories are maintained by the app: their balance is derived, so
+# clients must not offer them when picking a category for a transaction.
+# set! rather than json.system — Jbuilder routes bare method calls through
+# method_missing, and `system` collides with the private Kernel method.
+json.set! "system", category.system?
+json.system_key category.system_key
+
 # Parent information (for subcategories)
 if category.parent.present?
   json.parent do

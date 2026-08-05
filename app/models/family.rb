@@ -152,6 +152,10 @@ class Family < ApplicationRecord
 
   before_validation :normalize_enabled_currencies!
   before_save :snapshot_envelope_activation!
+  # after_save, not activate_envelope_mode! — that method isn't on any UI path.
+  # The only way a user reaches envelope mode is the settings select, which
+  # mass-assigns budget_mode through Family#update.
+  after_save :ensure_envelope_system_categories!, if: :should_create_envelope_system_categories?
 
   def primary_currency_code
     normalize_currency_code(currency) || "USD"
@@ -257,6 +261,19 @@ class Family < ApplicationRecord
     update!(budget_mode: "cap")
   end
 
+  # The built-in envelope that holds cash against money already spent on credit.
+  # Self-healing find-or-create rather than a backfill migration: families
+  # already in envelope mode when this shipped get theirs on the next budget
+  # page load (see Budget.find_or_bootstrap).
+  def debt_payment_category
+    @debt_payment_category ||= find_or_create_system_category("debt_payment")
+  end
+
+  # Creates any system categories envelope mode depends on. Idempotent.
+  def ensure_envelope_system_categories!
+    debt_payment_category
+  end
+
   # The family's cash not yet assigned to an envelope: cash in in-budget
   # accounts, minus every envelope's rolling balance (negative balances reduce
   # the pool the same way positive ones reserve from it — see
@@ -309,8 +326,38 @@ class Family < ApplicationRecord
     envelope_category_math[:assigned]
   end
 
+  # Cash the Debt Payment envelope is holding against credit purchases already
+  # made. Positive while a balance is carried; zero for a family that never
+  # uses credit. See IncomeStatement::LiabilityReserve.
+  def debt_reserve
+    return Money.new(0, primary_currency_code) unless envelope_mode?
+
+    Money.new(envelope_balances_by_category.fetch(debt_payment_category.id, 0), primary_currency_code)
+  end
+
+  # Card debt that no envelope is holding cash against — chiefly the balance
+  # carried in on the day the family switched to envelope mode, which is
+  # deliberately not auto-funded. Also catches manual-only card users, whose
+  # balance corrections arrive as Valuations and so never enter the reserve.
+  #
+  # Uses income_statement.eligible_accounts rather than raw `accounts` so it
+  # agrees with the per-user-scoped reserve it's compared against, and is
+  # restricted to the primary currency for the same reason
+  # in_budget_cash_balance is.
+  def unreserved_debt_balance
+    return Money.new(0, primary_currency_code) unless envelope_mode?
+
+    owed = income_statement.eligible_accounts
+                           .where(accountable_type: IncomeStatement::LiabilityReserve::REVOLVING_TYPES,
+                                  currency: primary_currency_code)
+                           .sum(:balance)
+
+    Money.new([ owed.to_d - debt_reserve.amount, 0 ].max, primary_currency_code)
+  end
+
   def reset_envelope_caches!
     remove_instance_variable(:@envelope_category_math) if instance_variable_defined?(:@envelope_category_math)
+    remove_instance_variable(:@child_category_ids_by_parent) if instance_variable_defined?(:@child_category_ids_by_parent)
   end
 
   private
@@ -330,21 +377,57 @@ class Family < ApplicationRecord
           expense_by_cat = statement.expense_totals(period: period).category_totals.index_by { |ct| ct.category.id }
           income_by_cat = statement.income_totals(period: period).category_totals.index_by { |ct| ct.category.id }
 
-          category_ids = (allocated.keys + expense_by_cat.keys + income_by_cat.keys).compact.uniq
+          # Cash owed on cards for purchases already made. Held in the built-in
+          # Debt Payment envelope so the spending envelope's drop at swipe time
+          # is offset and the Unassigned pool doesn't grow; the reserve then
+          # drains at the same rate cash leaves when the card is paid.
+          reserve = statement.liability_reserve_total(period: period)
+          debt_id = debt_payment_category.id
+
+          category_ids = (allocated.keys + expense_by_cat.keys + income_by_cat.keys + [ debt_id ]).compact.uniq
           balances = Hash.new(0)
           assigned = Hash.new(0)
 
+          # A parent's CategoryTotal#total is own + children (see
+          # IncomeStatement#build_period_total). PeriodTotal#total compensates by
+          # rejecting subcategories, but envelopes are per-category, so without
+          # subtracting children back out a subcategory's spend would drain two
+          # envelopes and invent the difference in the Unassigned pool.
+          own = ->(totals_by_cat, category_id) {
+            total = (totals_by_cat[category_id]&.total || 0).to_d
+            child_category_ids_by_parent[category_id].each do |child_id|
+              total -= (totals_by_cat[child_id]&.total || 0).to_d
+            end
+            total
+          }
+
           category_ids.each do |category_id|
             funded = (allocated[category_id] || 0).to_d
-            spent = (expense_by_cat[category_id]&.total || 0).to_d
-            refunded = (income_by_cat[category_id]&.total || 0).to_d
+            spent = own.call(expense_by_cat, category_id)
+            refunded = own.call(income_by_cat, category_id)
+            # Additive, and deliberately outside the clamp below: the reserve
+            # must be free to go negative (a card refund with no offsetting
+            # charge, or a payment against debt that predates activation) or
+            # Unassigned stops tracking cash.
+            debt = category_id == debt_id ? reserve : BigDecimal(0)
             assigned[category_id] = funded
-            balances[category_id] = funded - [ spent - refunded, 0 ].max
+            balances[category_id] = funded + debt - [ spent - refunded, 0 ].max
           end
 
           { balances: balances, assigned: assigned }
         end
       end
+    end
+
+    # Child category ids keyed by parent id, defaulting to an empty list so
+    # callers can iterate without a nil check. Loaded once per instance
+    # alongside the rest of the envelope math.
+    def child_category_ids_by_parent
+      @child_category_ids_by_parent ||= categories.where.not(parent_id: nil)
+                                                  .pluck(:parent_id, :id)
+                                                  .group_by(&:first)
+                                                  .transform_values { |pairs| pairs.map(&:last) }
+                                                  .tap { |h| h.default = [].freeze }
     end
   public
 
@@ -604,6 +687,43 @@ class Family < ApplicationRecord
     # resumes existing rolling balances instead of re-snapshotting.
     def snapshot_envelope_activation!
       self.envelope_activated_on = Date.current if budget_mode == "envelope" && envelope_activated_on.blank?
+    end
+
+    def should_create_envelope_system_categories?
+      persisted? && envelope_mode? && saved_change_to_budget_mode?
+    end
+
+    # Looked up by system_key, never by name — the name is a fallback for old
+    # data and raw SQL, while everything user-facing renders display_name from
+    # i18n. The stored name is only disambiguated because Category still has a
+    # per-family uniqueness validation on it and the user may already own a
+    # category with the same label.
+    def find_or_create_system_category(key)
+      existing = categories.find_by(system_key: key)
+      return existing if existing
+
+      config = Category::SYSTEM_KEYS.fetch(key)
+
+      I18n.with_locale(locale) do
+        categories.create!(
+          system_key: key,
+          name: available_category_name(I18n.t(config[:name_key])),
+          color: config[:color],
+          lucide_icon: config[:lucide_icon]
+        )
+      end
+    rescue ActiveRecord::RecordNotUnique, ActiveRecord::RecordInvalid
+      # Another request created it between the find and the create.
+      categories.find_by!(system_key: key)
+    end
+
+    def available_category_name(preferred)
+      return preferred unless categories.exists?(name: preferred)
+
+      (2..).each do |n|
+        candidate = "#{preferred} (#{n})"
+        return candidate unless categories.exists?(name: candidate)
+      end
     end
 
     def normalize_enabled_currencies!

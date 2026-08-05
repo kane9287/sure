@@ -49,6 +49,32 @@ class Category::MergerTest < ActiveSupport::TestCase
     assert_not Category.exists?(source.id)
   end
 
+  test "a built-in category cannot be merged away" do
+    target = create_category(@family, "Merge Target")
+    debt_payment = @family.debt_payment_category
+
+    assert_raises Category::Merger::UnauthorizedCategoryError do
+      Category::Merger.new(
+        family: @family,
+        target_category: target,
+        source_categories: [ debt_payment ]
+      )
+    end
+  end
+
+  test "a built-in category cannot be a merge target" do
+    source = create_category(@family, "Merge Source")
+    debt_payment = @family.debt_payment_category
+
+    assert_raises Category::Merger::UnauthorizedCategoryError do
+      Category::Merger.new(
+        family: @family,
+        target_category: debt_payment,
+        source_categories: [ source ]
+      )
+    end
+  end
+
   private
     def create_category(family, name, parent: nil)
       family.categories.create!(

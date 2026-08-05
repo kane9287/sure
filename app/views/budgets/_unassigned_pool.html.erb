@@ -41,4 +41,18 @@
       <div class="absolute inset-0 bg-inverse rounded-2xl" style="width: <%= percent_assigned %>%;"></div>
     </div>
   </div>
+
+  <%# Card debt with no envelope behind it — usually the balance carried in at
+      activation, which isn't auto-funded, or a manual card whose balance moves
+      by Valuation rather than transactions. Both leave the Debt Payment
+      envelope short of what's actually owed. %>
+  <% unreserved_debt = family.unreserved_debt_balance %>
+  <% if unreserved_debt.positive? %>
+    <div class="flex items-start gap-2 rounded-lg bg-warning/10 p-3">
+      <span class="text-warning shrink-0 mt-0.5"><%= icon("triangle-alert", size: "sm", color: "current") %></span>
+      <p class="text-xs text-warning">
+        <%= t(".unreserved_debt", amount: format_money(unreserved_debt)) %>
+      </p>
+    </div>
+  <% end %>
 </div>

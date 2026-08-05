@@ -17,7 +17,7 @@ class Transactions::CategorizesController < ApplicationController
     end
 
     @group      = groups.first
-    @categories = Current.family.categories.alphabetically
+    @categories = Current.family.categories.user_selectable.alphabetically
     @total_uncategorized = uncategorized_count
   end
 
@@ -27,7 +27,7 @@ class Transactions::CategorizesController < ApplicationController
     all_entry_ids = Array.wrap(params[:all_entry_ids]).reject(&:blank?)
     remaining_ids = all_entry_ids - entry_ids
 
-    category = Current.family.categories.find(params[:category_id])
+    category = Current.family.categories.user_selectable.find(params[:category_id])
     entries  = Current.accessible_entries.excluding_split_parents.where(id: entry_ids)
     count    = entries.bulk_update!({ category_id: category.id })
 
@@ -49,7 +49,7 @@ class Transactions::CategorizesController < ApplicationController
         if remaining_ids.empty?
           render turbo_stream: turbo_stream.action(:redirect, transactions_categorize_path(position: @position))
         else
-          @categories = Current.family.categories.alphabetically
+          @categories = Current.family.categories.user_selectable.alphabetically
           streams = entry_ids.map { |id| turbo_stream.remove("categorize_entry_#{id}") }
           remaining_entries.each do |entry|
             streams << turbo_stream.replace(
@@ -76,7 +76,7 @@ class Transactions::CategorizesController < ApplicationController
     filter           = params[:filter].to_s.strip
     transaction_type = params[:transaction_type].presence
     entries          = filter.present? ? Entry.uncategorized_matching(Current.accessible_entries, filter, transaction_type) : []
-    @categories      = Current.family.categories.alphabetically
+    @categories      = Current.family.categories.user_selectable.alphabetically
 
     render turbo_stream: [
       turbo_stream.replace("categorize_group_title",
@@ -93,7 +93,7 @@ class Transactions::CategorizesController < ApplicationController
 
   def assign_entry
     entry         = Current.accessible_entries.excluding_split_parents.find(params[:entry_id])
-    category      = Current.family.categories.find(params[:category_id])
+    category      = Current.family.categories.user_selectable.find(params[:category_id])
     position      = params[:position].to_i
     all_entry_ids = Array.wrap(params[:all_entry_ids]).reject(&:blank?)
     remaining_ids = all_entry_ids - [ entry.id.to_s ]

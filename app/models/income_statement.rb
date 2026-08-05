@@ -44,6 +44,21 @@ class IncomeStatement
     @income_totals_by_period[key] = build_period_total(classification: "income", period: period)
   end
 
+  # Net amount owed on revolving-debt accounts for activity in `period` — the
+  # cash envelope mode must hold back against purchases already made on credit.
+  # See IncomeStatement::LiabilityReserve for why this isn't derived from
+  # expense_totals.
+  def liability_reserve_total(period: Period.current_month)
+    key = period_cache_key(period)
+    @liability_reserve_by_period ||= {}
+    return @liability_reserve_by_period[key] if @liability_reserve_by_period.key?(key)
+
+    @liability_reserve_by_period[key] = liability_reserve_query(
+      transactions_scope: family.transactions.visible.excluding_pending.in_period(period),
+      date_range: period.date_range
+    )
+  end
+
   def net_category_totals(period: Period.current_month)
     key = period_cache_key(period)
     @net_category_totals_by_period ||= {}
@@ -252,6 +267,16 @@ class IncomeStatement
       Rails.cache.fetch([
         "income_statement", "totals_query", "v2", family.id, user&.id, included_account_ids_hash, sql_hash, date_range.begin, date_range.end, family.entries_cache_version, family.accounts.maximum(:updated_at)&.to_i
       ]) { Totals.new(family, transactions_scope: transactions_scope, date_range: date_range, included_account_ids: included_account_ids).call }
+    end
+
+    # Same cache-key shape as totals_query so the reserve and the expense totals
+    # it has to stay in lockstep with always invalidate together.
+    def liability_reserve_query(transactions_scope:, date_range:)
+      sql_hash = Digest::MD5.hexdigest(transactions_scope.to_sql)
+
+      Rails.cache.fetch([
+        "income_statement", "liability_reserve", "v1", family.id, user&.id, included_account_ids_hash, sql_hash, date_range.begin, date_range.end, family.entries_cache_version, family.accounts.maximum(:updated_at)&.to_i
+      ]) { LiabilityReserve.new(family, transactions_scope: transactions_scope, date_range: date_range, included_account_ids: included_account_ids).call }
     end
 
     def monetizable_currency

@@ -117,6 +117,7 @@ Two primary data ingestion methods:
   - Pending transactions are fetched by default and handled via reconciliation/filtering.
   - Set `SIMPLEFIN_INCLUDE_PENDING=0` to disable pending fetching for SimpleFIN.
   - Set `PLAID_INCLUDE_PENDING=0` to disable pending fetching for Plaid.
+  - Set `SIMPLEFIN_IMPORT_NOTES=0` to stop SimpleFIN writing its memo to `Entry#notes` (also toggleable at `/settings/hosting`; the env var wins when set). Defaults on; only affects future syncs.
   - Set `SIMPLEFIN_DEBUG_RAW=1` to enable raw payload debug logging.
   - Set `UP_DEBUG_RAW=1` to enable raw Up payload debug logging. DEV-ONLY: the dump contains PII and is gated to local environments, so it never logs in managed/production.
 
