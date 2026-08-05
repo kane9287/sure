@@ -3,11 +3,6 @@ class SimplefinItemsController < ApplicationController
   before_action :set_simplefin_item, only: [ :show, :edit, :update, :destroy, :sync, :balances, :setup_accounts, :complete_account_setup, :dismiss_replacement_suggestion ]
   before_action :require_admin!, only: [ :new, :create, :select_existing_account, :link_existing_account, :edit, :update, :destroy, :sync, :balances, :setup_accounts, :complete_account_setup, :dismiss_replacement_suggestion ]
 
-  # Setup wizard "account type" values that mean "link to this existing account"
-  # instead of creating a new one. Create/Link/Skip share one <select> so the three
-  # choices stay mutually exclusive and no invalid combination is representable.
-  LINK_OPTION_PREFIX = "link:".freeze
-
   def index
     @simplefin_items = Current.family.simplefin_items.active.ordered
     render layout: "settings"
@@ -177,31 +172,9 @@ class SimplefinItemsController < ApplicationController
       [ "Other Asset", "OtherAsset" ]
     ]
 
-    # Manual accounts this connection could attach to instead of creating duplicates.
-    # Loaded once; each SFA filters the same in-memory list by currency and type.
-    link_candidates = Current.family.accounts.visible_manual.alphabetically.to_a
-
     # Compute UI-only suggestions (preselect only when high confidence)
     @inferred_map = {}
-    @link_options_map = {}
-    @preselected_link_map = {}
-    # Two SFAs can't both be preselected onto the same account — only one of them
-    # could actually claim it at submit, so don't default the second into a failure.
-    suggested_account_ids = []
-
     @simplefin_accounts.each do |sfa|
-      linkable = sfa.linkable_accounts(candidates: link_candidates)
-      matched = sfa.balance_matched_account(candidates: linkable)
-      matched = nil if matched && suggested_account_ids.include?(matched.id)
-      suggested_account_ids << matched.id if matched
-      @preselected_link_map[sfa.id] = matched && "#{LINK_OPTION_PREFIX}#{matched.id}"
-      @link_options_map[sfa.id] = linkable.map do |candidate|
-        [
-          link_option_label(candidate, balance_match: candidate.id == matched&.id),
-          "#{LINK_OPTION_PREFIX}#{candidate.id}"
-        ]
-      end
-
       holdings = sfa.raw_holdings_payload.presence || sfa.raw_payload.to_h["holdings"]
       institution_name = nil
       begin
@@ -282,17 +255,18 @@ class SimplefinItemsController < ApplicationController
     valid_types = Provider::SimplefinAdapter.supported_account_types + [ "Crypto", "OtherAsset" ]
 
     created_accounts = []
-    linked_accounts = []
-    # Two SFAs pointing at the same existing account in one submission is the only
-    # collision `visible_manual` can't catch — it only reflects committed state.
-    claimed_account_ids = []
-    setup_errors = []
     skipped_count = 0
 
     account_types.each do |simplefin_account_id, selected_type|
       # Skip accounts marked as "skip"
       if selected_type == "skip" || selected_type.blank?
         skipped_count += 1
+        next
+      end
+
+      # Validate account type is supported
+      unless valid_types.include?(selected_type)
+        Rails.logger.warn("Invalid account type '#{selected_type}' submitted for SimpleFIN account #{simplefin_account_id}")
         next
       end
 
@@ -304,72 +278,42 @@ class SimplefinItemsController < ApplicationController
       end
 
       # Skip if already linked (race condition protection)
-      if simplefin_account.account.present? || simplefin_account.account_provider.present?
+      if simplefin_account.account.present?
         Rails.logger.info("SimpleFIN account #{simplefin_account_id} already linked, skipping")
         next
       end
 
-      # One bad row must not abort the whole submission.
-      begin
-        if selected_type.to_s.start_with?(LINK_OPTION_PREFIX)
-          target_account = link_target_for(selected_type, claimed_account_ids)
-          unless target_account
-            Rails.logger.warn("Link target '#{selected_type}' unavailable for SimpleFIN account #{simplefin_account_id}")
-            setup_errors << simplefin_account.name
-            next
-          end
+      selected_subtype = account_subtypes[simplefin_account_id]
 
-          # The wizard only ever offers SFAs that have no account at all, so there is
-          # nothing to orphan; passing false makes sure a bad candidate query can never
-          # delete one of the user's accounts.
-          simplefin_account.link_to_account!(target_account, destroy_orphaned_previous_account: false)
-          claimed_account_ids << target_account.id
-          linked_accounts << target_account
-          next
-        end
+      # Default subtype for CreditCard since it only has one option
+      selected_subtype = "credit_card" if selected_type == "CreditCard" && selected_subtype.blank?
 
-        # Validate account type is supported
-        unless valid_types.include?(selected_type)
-          Rails.logger.warn("Invalid account type '#{selected_type}' submitted for SimpleFIN account #{simplefin_account_id}")
-          next
-        end
-
-        selected_subtype = account_subtypes[simplefin_account_id]
-
-        # Default subtype for CreditCard since it only has one option
-        selected_subtype = "credit_card" if selected_type == "CreditCard" && selected_subtype.blank?
-
-        # Create account with user-selected type and subtype
-        account = Account.create_from_simplefin_account(
-          simplefin_account,
-          selected_type,
-          selected_subtype
-        )
-        simplefin_account.update!(account: account)
-        # Also create AccountProvider for consistency with the new linking system
-        simplefin_account.ensure_account_provider!
-        created_accounts << account
-      rescue SimplefinAccount::Linking::Error, ActiveRecord::RecordInvalid, ActiveRecord::RecordNotUnique => e
-        Rails.logger.warn("SimpleFIN setup failed for account #{simplefin_account_id}: #{e.class} - #{e.message}")
-        setup_errors << simplefin_account.name
-        next
-      end
+      # Create account with user-selected type and subtype
+      account = Account.create_from_simplefin_account(
+        simplefin_account,
+        selected_type,
+        selected_subtype
+      )
+      simplefin_account.update!(account: account)
+      # Also create AccountProvider for consistency with the new linking system
+      simplefin_account.ensure_account_provider!
+      created_accounts << account
     end
 
     # Clear pending status and mark as complete
     @simplefin_item.update!(pending_account_setup: false)
 
-    # Trigger a sync to process the imported SimpleFin data (transactions and holdings).
-    # Link-only submissions need this just as much as creates — without it the newly
-    # linked account imports nothing until the next scheduled sync.
-    @simplefin_item.sync_later if created_accounts.any? || linked_accounts.any?
+    # Trigger a sync to process the imported SimpleFin data (transactions and holdings)
+    @simplefin_item.sync_later if created_accounts.any?
 
     # Set appropriate flash message
-    flash[:notice] = setup_notice(
-      created_count: created_accounts.count,
-      linked_count: linked_accounts.count,
-      skipped_count: skipped_count
-    )
+    if created_accounts.any?
+      flash[:notice] = t(".success", count: created_accounts.count)
+    elsif skipped_count > 0
+      flash[:notice] = t(".all_skipped")
+    else
+      flash[:notice] = t(".no_accounts")
+    end
 
     # Add stale account results to flash
     if stale_results[:deleted] > 0 || stale_results[:moved] > 0
@@ -381,13 +325,6 @@ class SimplefinItemsController < ApplicationController
     if stale_action_errors.any?
       flash[:alert] = t(".stale_accounts_errors", count: stale_action_errors.size)
     end
-
-    # Warn about rows that couldn't be set up, without hiding the ones that worked
-    if setup_errors.any?
-      setup_error_message = t(".setup_errors", count: setup_errors.size, names: setup_errors.to_sentence)
-      flash[:alert] = [ flash[:alert], setup_error_message ].compact.join(" ")
-    end
-
     if turbo_frame_request?
       # Recompute data needed by Accounts#index partials
       @manual_accounts = Account.uncached {
@@ -409,13 +346,7 @@ class SimplefinItemsController < ApplicationController
         turbo_stream.replace("manual-accounts", view_context.tag.div(id: "manual-accounts"))
       end
 
-      # Freshly linked accounts are no longer manual; drop their rows optimistically
-      # the same way #link_existing_account does.
-      linked_account_removals = linked_accounts.map do |linked_account|
-        turbo_stream.remove(ActionView::RecordIdentifier.dom_id(linked_account))
-      end
-
-      render turbo_stream: linked_account_removals + [
+      render turbo_stream: [
         manual_accounts_stream,
         turbo_stream.replace(
           ActionView::RecordIdentifier.dom_id(@simplefin_item),
@@ -456,16 +387,81 @@ class SimplefinItemsController < ApplicationController
     @account = Current.family.accounts.find(params[:account_id])
     simplefin_account = SimplefinAccount.find(params[:simplefin_account_id])
 
-    # Guards and the relink transaction both live in SimplefinAccount::Linking so the
-    # setup wizard runs the identical operation. Errors map 1:1 onto existing flash keys.
-    begin
-      simplefin_account.link_to_account!(@account)
-    rescue SimplefinAccount::Linking::Error => e
-      flash[:alert] = t(link_error_translation_key(e))
+    # Cross-provider guard: we only support swapping SimpleFIN-to-SimpleFIN links
+    # here. If @account is linked to a different provider type (Plaid, Binance,
+    # etc.), require explicit unlink first so users don't silently lose
+    # cross-provider data. Same-provider relinks (e.g., Citi fraud replacement
+    # swapping to a new card sfa) are now allowed below.
+    has_foreign_provider = @account.account_providers
+      .where.not(provider_type: "SimplefinAccount").exists? ||
+      @account.plaid_account_id.present?
+    if has_foreign_provider
+      flash[:alert] = t("simplefin_items.link_existing_account.errors.different_provider")
       if turbo_frame_request?
         return render turbo_stream: Array(flash_notification_stream_items)
       else
         return redirect_to account_path(@account), alert: flash[:alert]
+      end
+    end
+
+    # Verify the SimpleFIN account belongs to this family's SimpleFIN items
+    unless Current.family.simplefin_items.include?(simplefin_account.simplefin_item)
+      flash[:alert] = t("simplefin_items.link_existing_account.errors.invalid_simplefin_account")
+      if turbo_frame_request?
+        render turbo_stream: Array(flash_notification_stream_items)
+      else
+        redirect_to account_path(@account), alert: flash[:alert]
+      end
+      return
+    end
+
+    # Relink behavior: detach any legacy link and point provider link at the chosen account
+    Account.transaction do
+      simplefin_account.lock!
+
+      # Detach @account's EXISTING SimpleFIN link (if any) before attaching the
+      # new one. This is the fraud-replacement path: user is swapping from
+      # sfa_old (dead card) to sfa_new (replacement). Without this, @account
+      # would end up with two AccountProviders and the old sfa's data would
+      # still flow in on every sync.
+      @account.account_providers.where(provider_type: "SimplefinAccount").find_each do |existing_ap|
+        # Skip the one we're about to (re)assign — avoid deleting what we then recreate.
+        next if existing_ap.provider_id == simplefin_account.id
+        existing_ap.destroy
+      end
+      @account.update!(simplefin_account_id: nil) if @account.simplefin_account_id.present?
+
+      # Clear legacy association if present (Account.simplefin_account_id)
+      if (legacy_account = simplefin_account.account)
+        legacy_account.update!(simplefin_account_id: nil)
+      end
+
+      # Upsert the AccountProvider mapping deterministically
+      ap = AccountProvider.find_or_initialize_by(provider: simplefin_account)
+      previous_account = ap.account
+      ap.account_id = @account.id
+      ap.save!
+
+      # If the provider was previously linked to a different account in this family,
+      # and that account is now orphaned, quietly disable it so it disappears from the
+      # visible manual list. This mirrors the unified flow expectation that the provider
+      # follows the chosen account.
+      if previous_account && previous_account.id != @account.id && previous_account.family_id == @account.family_id
+        begin
+          previous_account.reload
+          # Only hide if the previous account is truly orphaned (no other provider links)
+          if previous_account.account_providers.none?
+            # Disabled accounts still appear (greyed-out) in the manual list; for relink
+            # consolidation we want the duplicate to disappear from the UI.
+            # Use the app's standard deletion path (async) so the "pending_deletion" state
+            # remains truthful in the UI.
+            previous_account.destroy_later if previous_account.may_mark_for_deletion?
+          else
+            Rails.logger.info("Skipped disabling account ##{previous_account.id} after relink because it still has active provider links")
+          end
+        rescue => e
+          Rails.logger.warn("Failed disabling-orphan check for account ##{previous_account&.id}: #{e.class} - #{e.message}")
+        end
       end
     end
 
@@ -518,54 +514,6 @@ class SimplefinItemsController < ApplicationController
 
     def set_simplefin_item
       @simplefin_item = Current.family.simplefin_items.find(params[:id])
-    end
-
-    # Resolve a "link:<account_uuid>" selection to an account we're allowed to attach to.
-    # `visible_manual` is the guard: it can only return accounts with no provider link at
-    # all, so the account_providers [account_id, provider_type] unique index is safe.
-    def link_target_for(selected_type, claimed_account_ids)
-      account_id = selected_type.to_s.delete_prefix(LINK_OPTION_PREFIX)
-      return nil if account_id.blank? || claimed_account_ids.include?(account_id)
-
-      Current.family.accounts.visible_manual.find_by(id: account_id)
-    end
-
-    def setup_notice(created_count:, linked_count:, skipped_count:)
-      if created_count > 0 && linked_count > 0
-        t("simplefin_items.complete_account_setup.created_and_linked", created: created_count, linked: linked_count)
-      elsif created_count > 0
-        t("simplefin_items.complete_account_setup.success", count: created_count)
-      elsif linked_count > 0
-        t("simplefin_items.complete_account_setup.linked", count: linked_count)
-      elsif skipped_count > 0
-        t("simplefin_items.complete_account_setup.all_skipped")
-      else
-        t("simplefin_items.complete_account_setup.no_accounts")
-      end
-    end
-
-    # Dropdown label for a "Link to existing account" option in the setup wizard.
-    def link_option_label(account, balance_match: false)
-      key = balance_match ? "link_option_balance_match" : "link_option"
-
-      t(
-        "simplefin_items.setup_accounts.#{key}",
-        name: account.name,
-        type: Accountable.from_type(account.accountable_type)&.singular_display_name,
-        balance: helpers.number_to_currency(account.balance, unit: account.currency)
-      )
-    end
-
-    # SimplefinAccount::Linking raises typed errors so callers pick their own wording.
-    def link_error_translation_key(error)
-      case error
-      when SimplefinAccount::Linking::ForeignProviderError
-        "simplefin_items.link_existing_account.errors.different_provider"
-      when SimplefinAccount::Linking::CurrencyMismatchError
-        "simplefin_items.link_existing_account.errors.currency_mismatch"
-      else
-        "simplefin_items.link_existing_account.errors.invalid_simplefin_account"
-      end
     end
 
     def simplefin_params
