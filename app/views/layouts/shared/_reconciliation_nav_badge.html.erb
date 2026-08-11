@@ -1,0 +1,15 @@
+<%# locals: (count:) %>
+
+<%# Rendered in both the desktop top bar and the mobile top nav. The queue is
+    the only place a pending auto-match can be resolved, so hiding the way in
+    below `lg` left phone users with a "pending" pill and nowhere to go. %>
+<%# Prefetch disabled to match the insights link: these are actions, and a
+    prefetched list can be stale by the time it is clicked. %>
+<%= link_to transaction_reconciliations_path,
+      class: "relative inline-flex items-center justify-center w-9 h-9 pointer-coarse:w-11 pointer-coarse:h-11 rounded-lg text-secondary hover:text-primary hover:bg-container-inset-hover transition-colors focus-ring",
+      title: t("layouts.application.transaction_reconciliations"),
+      aria: { label: t("layouts.application.transaction_reconciliations") },
+      data: { turbo_prefetch: false } do %>
+  <%= icon("git-merge", size: "sm") %>
+  <span class="absolute top-1 right-1 min-w-4 h-4 px-1 rounded-full bg-inverse text-inverse text-[10px] font-medium flex items-center justify-center pointer-events-none"><%= count > 9 ? "9+" : count %></span>
+<% end %>
