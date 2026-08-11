@@ -1,5 +1,5 @@
 class PagesController < ApplicationController
-  include Periodable
+  include Periodable, LandingRedirectable
 
   # Per-widget dashboard layout guardrails. Deterministic defaults the masonry
   # packer reads; users may override a grow widget's height via presets.

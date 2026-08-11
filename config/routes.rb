@@ -852,6 +852,11 @@ Rails.application.routes.draw do
     end
   end
 
+  # The dashboard's own address. "/" honours the user's default landing page
+  # (see LandingRedirectable), so the Home nav item and the logo need a path
+  # that always renders the dashboard.
+  get "dashboard", to: "pages#dashboard", as: :dashboard
+
   # Defines the root path route ("/")
   root "pages#dashboard"
 end

@@ -171,6 +171,8 @@ en:
         general_title: General
         default_period: Default Period
         default_account_order: Default Account Order
+        default_landing_page: Default screen
+        default_landing_page_hint: The page you land on when you open the app.
         language: Language
         language_auto: Browser language
         page_title: Preferences

@@ -7,6 +7,10 @@
           language_options,
           { label: t(".language"), include_blank: t(".language_auto") },
           { data: { auto_submit_form_target: "auto" } } %>
+      <%= form.select :default_landing_page,
+          LandingPage.all.map { |page| [ page.label(preview_features_enabled: preview_features_enabled?), page.key ] },
+          { label: t(".default_landing_page"), hint: t(".default_landing_page_hint") },
+          { data: { auto_submit_form_target: "auto" } } %>
       <%= form.fields_for :family do |family_form| %>
         <%= family_form.select :timezone,
             timezone_options,

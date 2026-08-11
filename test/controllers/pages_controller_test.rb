@@ -14,6 +14,69 @@ class PagesControllerTest < ActionDispatch::IntegrationTest
     assert_response :ok
   end
 
+  test "root honours the default landing page preference" do
+    @user.update!(default_landing_page: "transactions")
+
+    get root_path
+
+    assert_redirected_to transactions_path
+  end
+
+  test "root renders the dashboard when the preference is home" do
+    assert_equal "home", @user.default_landing_page
+
+    get root_path
+
+    assert_response :ok
+  end
+
+  test "dashboard path always renders regardless of the preference" do
+    @user.update!(default_landing_page: "transactions")
+
+    get dashboard_path
+
+    assert_response :ok
+  end
+
+  test "a plan preference without preview features lands on budgets without looping" do
+    @user.update!(
+      default_landing_page: "plan",
+      preferences: (@user.preferences || {}).merge("preview_features_enabled" => false)
+    )
+
+    get root_path
+
+    assert_redirected_to budgets_path
+
+    follow_redirect!
+    assert_response :ok
+  end
+
+  test "flash survives the landing page redirect" do
+    @user.update!(default_landing_page: "transactions")
+
+    # Anything that bounces to "/" with a message - here the preview gate - would
+    # otherwise have its flash swept by the second hop.
+    @user.update!(preferences: (@user.preferences || {}).merge("preview_features_enabled" => false))
+    get insights_path
+    assert_redirected_to root_path
+
+    follow_redirect!
+    assert_redirected_to transactions_path
+
+    follow_redirect!
+    assert_equal I18n.t("preview.not_enabled"), flash[:alert]
+  end
+
+  test "intro users still land on chats regardless of the preference" do
+    sign_in @intro_user
+    @intro_user.update!(default_landing_page: "transactions")
+
+    get root_path
+
+    assert_redirected_to chats_path
+  end
+
   test "update_preferences persists dashboard section layout height" do
     patch "/dashboard/preferences", params: {
       preferences: { dashboard_section_layout: { net_worth_chart: { height: "compact" } } }
