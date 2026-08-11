@@ -32,6 +32,26 @@ class UsersControllerTest < ActionDispatch::IntegrationTest
     assert_equal "es", @user.reload.locale
   end
 
+  test "can update default landing page" do
+    patch user_url(@user), params: {
+      user: { redirect_to: "preferences", default_landing_page: "transactions" }
+    }
+
+    assert_redirected_to settings_preferences_url
+    assert_equal "transactions", @user.reload.default_landing_page
+  end
+
+  test "rejects an unknown default landing page" do
+    original = @user.default_landing_page
+
+    patch user_url(@user), params: {
+      user: { redirect_to: "preferences", default_landing_page: "not_a_page" }
+    }
+
+    assert_redirected_to settings_profile_path
+    assert_equal original, @user.reload.default_landing_page
+  end
+
   test "admin can update enabled family currencies" do
     patch user_url(@user), params: {
       user: {

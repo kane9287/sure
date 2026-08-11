@@ -1,5 +1,5 @@
 <% intro_mode = Current.user&.ui_layout_intro? %>
-<% home_path = intro_mode ? chats_path : root_path %>
+<% home_path = intro_mode ? chats_path : dashboard_path %>
 <% mobile_nav_items = if intro_mode
   [
     { name: t(".nav.home"), path: chats_path, icon: "home", icon_custom: false, active: page_active?(chats_path) },
@@ -7,7 +7,9 @@
   ]
 else
   [
-    { name: t(".nav.home"), path: root_path, icon: "pie-chart", icon_custom: false, active: page_active?(root_path) },
+    # current_page?(root_path) keeps Home lit for users whose default landing page
+    # IS home, since they see the dashboard at "/" rather than at "/dashboard".
+    { name: t(".nav.home"), path: dashboard_path, icon: "pie-chart", icon_custom: false, active: page_active?(dashboard_path) || current_page?(root_path) },
     { name: t(".nav.transactions"), path: transactions_path, icon: "credit-card", icon_custom: false, active: page_active?(transactions_path) },
     { name: t(".nav.reports"), path: reports_path, icon: "chart-bar", icon_custom: false, active: page_active?(reports_path) },
     plan_nav_item,
