@@ -5,7 +5,7 @@ class Settings::LlmUsagesController < ApplicationController
 
   def show
     @breadcrumbs = [
-      [ t("breadcrumbs.home"), root_path ],
+      [ t("breadcrumbs.home"), dashboard_path ],
       [ t("breadcrumbs.llm_usage"), nil ]
     ]
     @family = Current.family

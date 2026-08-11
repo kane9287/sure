@@ -62,7 +62,7 @@ class PagesController < ApplicationController
 
     @dashboard_sections = build_dashboard_sections
 
-    @breadcrumbs = [ [ t("breadcrumbs.home"), root_path ], [ t("breadcrumbs.dashboard"), nil ] ]
+    @breadcrumbs = [ [ t("breadcrumbs.home"), dashboard_path ], [ t("breadcrumbs.dashboard"), nil ] ]
   end
 
   def intro

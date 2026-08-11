@@ -52,6 +52,22 @@ class PagesControllerTest < ActionDispatch::IntegrationTest
     assert_response :ok
   end
 
+  test "nothing on the dashboard links back to root" do
+    @user.update!(default_landing_page: "transactions")
+
+    get dashboard_path
+
+    assert_response :ok
+
+    # "/" now bounces to the preference, so anything on this page still aiming at
+    # it lands somewhere else entirely. The breadcrumb "Home" did exactly that,
+    # and the period picker and money flow filters are worse - both reload the
+    # "dashboard_sections" turbo frame, which the redirect would leave empty.
+    assert_select "a[href=?]", root_path, count: 0
+    assert_select "form[action=?]", root_path, count: 0
+    assert_select "a[href=?]", dashboard_path, text: I18n.t("breadcrumbs.home")
+  end
+
   test "flash survives the landing page redirect" do
     @user.update!(default_landing_page: "transactions")
 

@@ -4,7 +4,7 @@ class TransactionReconciliationsController < ApplicationController
 
   def index
     load_queue
-    @breadcrumbs = [ [ t("breadcrumbs.home"), root_path ], [ t("transaction_reconciliations.index.title"), nil ] ]
+    @breadcrumbs = [ [ t("breadcrumbs.home"), dashboard_path ], [ t("transaction_reconciliations.index.title"), nil ] ]
 
     # Deliberately no mark-as-read here, unlike the insights feed. These rows are
     # a question waiting on an answer, not a notification — the badge should

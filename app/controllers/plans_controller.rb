@@ -20,7 +20,7 @@ class PlansController < ApplicationController
                                      .visible
                                      .count
 
-    @breadcrumbs = [ [ t("breadcrumbs.home"), root_path ], [ t("breadcrumbs.plan"), nil ] ]
+    @breadcrumbs = [ [ t("breadcrumbs.home"), dashboard_path ], [ t("breadcrumbs.plan"), nil ] ]
   end
 
   private

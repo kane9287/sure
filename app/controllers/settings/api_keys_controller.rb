@@ -8,7 +8,7 @@ class Settings::ApiKeysController < ApplicationController
   def index
     @api_keys = Current.user.api_keys.active.visible.order(created_at: :desc)
     @breadcrumbs = [
-      [ t("breadcrumbs.home"), root_path ],
+      [ t("breadcrumbs.home"), dashboard_path ],
       [ t("breadcrumbs.api_keys"), nil ]
     ]
   end
@@ -16,7 +16,7 @@ class Settings::ApiKeysController < ApplicationController
   def show
     @newly_created = params[:newly_created].present?
     @breadcrumbs = [
-      [ t("breadcrumbs.home"), root_path ],
+      [ t("breadcrumbs.home"), dashboard_path ],
       [ t("breadcrumbs.api_keys"), settings_api_keys_path ],
       [ @api_key.name, nil ]
     ]

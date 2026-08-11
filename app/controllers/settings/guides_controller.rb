@@ -3,7 +3,7 @@ class Settings::GuidesController < ApplicationController
 
   def show
     @breadcrumbs = [
-      [ t("breadcrumbs.home"), root_path ],
+      [ t("breadcrumbs.home"), dashboard_path ],
       [ t("breadcrumbs.guides"), nil ]
     ]
     markdown = Redcarpet::Markdown.new(Redcarpet::Render::HTML,

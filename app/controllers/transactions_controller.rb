@@ -92,7 +92,7 @@ class TransactionsController < ApplicationController
       )
     end
 
-    @breadcrumbs = [ [ t("breadcrumbs.home"), root_path ], [ t("breadcrumbs.transactions"), nil ] ]
+    @breadcrumbs = [ [ t("breadcrumbs.home"), dashboard_path ], [ t("breadcrumbs.transactions"), nil ] ]
   end
 
   def clear_filter

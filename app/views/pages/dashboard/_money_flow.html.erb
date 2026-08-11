@@ -28,7 +28,7 @@
           <% menu.with_item(
                variant: :link,
                text: I18n.l(month, format: :month_year).capitalize,
-               href: root_path({ money_flow_month: month.iso8601, money_flow_account_ids: money_flow_data[:account_ids] }.compact),
+               href: dashboard_path({ money_flow_month: month.iso8601, money_flow_account_ids: money_flow_data[:account_ids] }.compact),
                frame: "dashboard_sections",
                selected: month == money_flow_data[:month]
              ) %>
@@ -44,7 +44,7 @@
            ) %>
 
         <% popover.with_custom_content do %>
-          <%= form_with url: root_path, method: :get, data: { turbo_frame: "dashboard_sections" }, class: "p-3 w-56 space-y-2" do %>
+          <%= form_with url: dashboard_path, method: :get, data: { turbo_frame: "dashboard_sections" }, class: "p-3 w-56 space-y-2" do %>
             <%= hidden_field_tag :money_flow_month, money_flow_data[:month].iso8601 %>
 
             <div data-controller="list-filter">
