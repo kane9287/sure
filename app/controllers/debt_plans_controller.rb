@@ -12,7 +12,7 @@ class DebtPlansController < ApplicationController
                          .to_a
     @linkable_account_count = linkable_accounts.count
     @breadcrumbs = [
-      [ t("breadcrumbs.home"), root_path ],
+      [ t("breadcrumbs.home"), dashboard_path ],
       [ t("debt_plans.index.title"), nil ]
     ]
   end
@@ -24,7 +24,7 @@ class DebtPlansController < ApplicationController
     @result = @debt_plan.schedule(@strategy)
     @comparison = @debt_plan.comparison
     @breadcrumbs = [
-      [ t("breadcrumbs.home"), root_path ],
+      [ t("breadcrumbs.home"), dashboard_path ],
       [ t("debt_plans.index.title"), debt_plans_path ],
       [ @debt_plan.name, nil ]
     ]
@@ -41,7 +41,7 @@ class DebtPlansController < ApplicationController
     # dominating a payoff plan, so they start unchecked.
     @selected_account_ids = @linkable_accounts.reject { |a| mortgage?(a) }.map { |a| a.id.to_s }
     @breadcrumbs = [
-      [ t("breadcrumbs.home"), root_path ],
+      [ t("breadcrumbs.home"), dashboard_path ],
       [ t("debt_plans.index.title"), debt_plans_path ],
       [ t("debt_plans.new.heading"), nil ]
     ]
@@ -73,7 +73,7 @@ class DebtPlansController < ApplicationController
     load_form_collections
     @selected_account_ids = @debt_plan.debt_plan_accounts.map { |link| link.account_id.to_s }
     @breadcrumbs = [
-      [ t("breadcrumbs.home"), root_path ],
+      [ t("breadcrumbs.home"), dashboard_path ],
       [ t("debt_plans.index.title"), debt_plans_path ],
       [ @debt_plan.name, debt_plan_path(@debt_plan) ],
       [ t("debt_plans.edit.heading"), nil ]

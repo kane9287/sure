@@ -20,7 +20,7 @@ class AccountStatementsController < ApplicationController
     @total_storage_bytes = visible_storage_scope.sum(:byte_size)
     @accounts = Current.user.accessible_accounts.visible.alphabetically
     @breadcrumbs = [
-      [ t("breadcrumbs.home"), root_path ],
+      [ t("breadcrumbs.home"), dashboard_path ],
       [ t("account_statements.index.title"), account_statements_path ]
     ]
     render layout: "settings"
@@ -31,7 +31,7 @@ class AccountStatementsController < ApplicationController
     @can_manage_statement = @statement.manageable_by?(Current.user)
     @reconciliation_checks = @statement.reconciliation_checks
     @breadcrumbs = [
-      [ t("breadcrumbs.home"), root_path ],
+      [ t("breadcrumbs.home"), dashboard_path ],
       [ t("account_statements.index.title"), account_statements_path ],
       [ @statement.filename, nil ]
     ]

@@ -4,7 +4,7 @@ class InsightsController < ApplicationController
 
   def index
     load_feed
-    @breadcrumbs = [ [ t("breadcrumbs.home"), root_path ], [ t("insights.index.title"), nil ] ]
+    @breadcrumbs = [ [ t("breadcrumbs.home"), dashboard_path ], [ t("insights.index.title"), nil ] ]
 
     # Viewing the feed is what "read" means here; the New badge for this
     # render comes from @unread_ids captured above. Turbo's hover prefetch

@@ -5,7 +5,7 @@ class Settings::BackgroundJobsController < Admin::BaseController
 
   def show
     @breadcrumbs = [
-      [ t("breadcrumbs.home"), root_path ],
+      [ t("breadcrumbs.home"), dashboard_path ],
       [ t("settings.background_jobs.show.page_title"), nil ]
     ]
 

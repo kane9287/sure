@@ -10,7 +10,7 @@ class Settings::DebugsController < Admin::BaseController
     @end_date = safe_parse_date(filter_params[:end_date])
 
     @breadcrumbs = [
-      [ t("breadcrumbs.home"), root_path ],
+      [ t("breadcrumbs.home"), dashboard_path ],
       [ t("settings.debugs.show.page_title"), nil ]
     ]
 

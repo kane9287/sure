@@ -1,7 +1,7 @@
 class Transactions::CategorizesController < ApplicationController
   def show
     @breadcrumbs = [
-      [ t("breadcrumbs.home"), root_path ],
+      [ t("breadcrumbs.home"), dashboard_path ],
       [ t("breadcrumbs.transactions"), transactions_path ],
       [ t("breadcrumbs.categorize"), nil ]
     ]

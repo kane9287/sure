@@ -5,7 +5,7 @@ class Settings::AiPromptsController < ApplicationController
 
   def show
     @breadcrumbs = [
-      [ t("breadcrumbs.home"), root_path ],
+      [ t("breadcrumbs.home"), dashboard_path ],
       [ t("breadcrumbs.ai_prompts"), nil ]
     ]
     @family = Current.family

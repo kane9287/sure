@@ -17,7 +17,7 @@ class Settings::HostingsController < ApplicationController
 
   def show
     @breadcrumbs = [
-      [ t("breadcrumbs.home"), root_path ],
+      [ t("breadcrumbs.home"), dashboard_path ],
       [ t("breadcrumbs.self_hosting"), nil ]
     ]
 

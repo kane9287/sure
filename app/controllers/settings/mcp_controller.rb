@@ -4,7 +4,7 @@ class Settings::McpController < ApplicationController
 
   def show
     @breadcrumbs = [
-      [ t("breadcrumbs.home"), root_path ],
+      [ t("breadcrumbs.home"), dashboard_path ],
       [ t("breadcrumbs.mcp"), nil ]
     ]
     @mcp_url = "#{configured_base_url}/mcp"
