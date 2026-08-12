@@ -46,6 +46,13 @@ class Account < ApplicationRecord
   VISIBLE_STATUSES = %w[draft active].freeze
   HISTORICAL_STATUSES = (VISIBLE_STATUSES + %w[disabled]).freeze
 
+  # Account types that can hold hand-entered income/expense transactions.
+  # Loans are included because HELOCs behave like revolving credit and loan
+  # payments are real ledger entries. The excluded types (Property, Vehicle,
+  # OtherAsset, OtherLiability) are tracked by valuations instead, so they are
+  # hidden from the New-transaction form.
+  TRANSACTION_CAPABLE_TYPES = %w[Depository CreditCard Investment Crypto Loan].freeze
+
   scope :visible, -> { where(status: VISIBLE_STATUSES) }
   scope :historical, -> { where(status: HISTORICAL_STATUSES) }
   # Accounts whose data should be included in financial reports, dashboards,
@@ -54,6 +61,7 @@ class Account < ApplicationRecord
   scope :assets, -> { where(classification: "asset") }
   scope :liabilities, -> { where(classification: "liability") }
   scope :alphabetically, -> { order(:name) }
+  scope :transaction_capable, -> { where(accountable_type: TRANSACTION_CAPABLE_TYPES) }
   scope :manual, -> {
     left_joins(:account_providers)
       .where(account_providers: { id: nil })
@@ -557,6 +565,14 @@ class Account < ApplicationRecord
 
   def eligible_for_transaction_default?
     supports_default? && active? && !linked?
+  end
+
+  # Determines if this account can accept hand-entered transactions. Provider
+  # linkage is deliberately not considered here: linked accounts accept manual
+  # entry so the reconciliation system can merge them with the provider's rows
+  # once they post.
+  def supports_manual_transactions?
+    accountable_type.in?(TRANSACTION_CAPABLE_TYPES)
   end
 
   # Determines if this account supports manual trade entry

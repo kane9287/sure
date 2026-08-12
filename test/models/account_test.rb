@@ -16,6 +16,31 @@ class AccountTest < ActiveSupport::TestCase
     end
   end
 
+  test "supports_manual_transactions? covers every accountable type" do
+    allowed = %w[Depository CreditCard Investment Crypto Loan]
+    disallowed = %w[Property Vehicle OtherAsset OtherLiability]
+
+    # Forces a deliberate decision here whenever a new accountable type is added.
+    assert_equal Accountable::TYPES.sort, (allowed + disallowed).sort
+
+    allowed.each do |type|
+      assert Account.new(accountable_type: type).supports_manual_transactions?,
+        "expected #{type} to support manual transactions"
+    end
+
+    disallowed.each do |type|
+      assert_not Account.new(accountable_type: type).supports_manual_transactions?,
+        "expected #{type} not to support manual transactions"
+    end
+  end
+
+  test "supports_manual_transactions? ignores provider linkage" do
+    # Linked accounts must stay open to manual entry so the reconciliation
+    # system can merge hand-entered rows with the provider's once they post.
+    assert accounts(:connected).linked?
+    assert accounts(:connected).supports_manual_transactions?
+  end
+
   test "create_and_sync calls sync_later by default" do
     Account.any_instance.expects(:sync_later).once
 

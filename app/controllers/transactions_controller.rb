@@ -129,6 +129,11 @@ class TransactionsController < ApplicationController
 
     return unless require_account_permission!(account)
 
+    unless account.supports_manual_transactions?
+      redirect_back_or_to account_path(account), alert: t(".unsupported_account_type")
+      return
+    end
+
     @entry = account.entries.new(entry_params)
 
     if @entry.save
@@ -566,8 +571,8 @@ class TransactionsController < ApplicationController
       accessible_accounts_scope = accessible_accounts
 
       @account_currencies = accessible_accounts_scope.pluck(:id, :currency).to_h
-      @manual_accounts = accessible_accounts_scope
-        .manual
+      @transaction_accounts = accessible_accounts_scope
+        .transaction_capable
         .active
         .alphabetically
         .includes(:account_providers, logo_attachment: :blob)
