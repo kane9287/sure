@@ -59,6 +59,8 @@ en:
       transfer: Transfer
     create:
       created: Transaction created
+      unsupported_account_type: This account type does not support transactions. Add
+        a balance update instead.
     update:
       updated: Transaction updated
     new:

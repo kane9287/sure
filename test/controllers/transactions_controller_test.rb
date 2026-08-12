@@ -35,6 +35,63 @@ class TransactionsControllerTest < ActionDispatch::IntegrationTest
     assert_enqueued_with(job: SyncJob)
   end
 
+  test "new lists provider-linked and transaction-capable accounts only" do
+    get new_transaction_url
+
+    assert_response :success
+
+    # Linked accounts stay selectable so manual entries can be reconciled
+    # against the provider's rows once they post.
+    assert_match accounts(:connected).name, response.body
+    assert_match accounts(:loan).name, response.body
+    assert_match accounts(:depository).name, response.body
+
+    # Valuation-tracked accounts have no transaction ledger.
+    assert_no_match(/#{Regexp.escape(accounts(:vehicle).name)}/, response.body)
+    assert_no_match(/#{Regexp.escape(accounts(:property).name)}/, response.body)
+    assert_no_match(/#{Regexp.escape(accounts(:other_asset).name)}/, response.body)
+    assert_no_match(/#{Regexp.escape(accounts(:other_liability).name)}/, response.body)
+  end
+
+  test "creates transaction on a provider-linked account" do
+    assert_difference [ "Entry.count", "Transaction.count" ], 1 do
+      post transactions_url, params: {
+        entry: {
+          account_id: accounts(:connected).id,
+          name: "Manual entry on linked account",
+          date: Date.current,
+          currency: "USD",
+          amount: 100,
+          nature: "outflow",
+          entryable_type: "Transaction",
+          entryable_attributes: {}
+        }
+      }
+    end
+
+    assert_redirected_to account_url(accounts(:connected))
+  end
+
+  test "rejects transaction on an account type that does not support them" do
+    assert_no_difference [ "Entry.count", "Transaction.count" ] do
+      post transactions_url, params: {
+        entry: {
+          account_id: accounts(:vehicle).id,
+          name: "Not allowed",
+          date: Date.current,
+          currency: "USD",
+          amount: 100,
+          nature: "outflow",
+          entryable_type: "Transaction",
+          entryable_attributes: {}
+        }
+      }
+    end
+
+    assert_redirected_to account_url(accounts(:vehicle))
+    assert_equal I18n.t("transactions.create.unsupported_account_type"), flash[:alert]
+  end
+
   test "updates with transaction details" do
     assert_no_difference [ "Entry.count", "Transaction.count" ] do
       patch transaction_url(@entry), params: {
