@@ -1,0 +1,53 @@
+{
+  "env": {
+    "ANTHROPIC_BASE_URL": "http://127.0.0.1:8787"
+  },
+  "permissions": {
+    "allow": [
+      "Bash(rtk bin/rails test test/models/transaction/search_test.rb -v)",
+      "Bash(bin/rails test *)",
+      "PowerShell(ruby --version)",
+      "PowerShell(ls \"C:\\\\Users\\\\Christopher\\\\Documents\\\\Calude AI stuff\\\\sure_pnw_financial\\\\sure-pnw-financial\\\\public\\\\\" | Select-Object Name)",
+      "Bash(git add *)",
+      "Bash(git reset *)",
+      "Bash(git commit -m ' *)",
+      "Bash(git push *)",
+      "Bash(docker compose *)",
+      "PowerShell(docker compose ps 2>&1)",
+      "Bash(git check-ignore *)",
+      "mcp__headroom__headroom_retrieve",
+      "Bash(git log *)",
+      "Bash(gh api *)",
+      "WebFetch(domain:github.com)",
+      "Bash(git --no-pager diff -- app/views/recurring_transactions/_projected_transaction.html.erb)",
+      "Bash(curl -s \"https://api.github.com/repos/lucide-icons/lucide/contents/categories\")",
+      "Bash(curl -s \"https://raw.githubusercontent.com/lucide-icons/lucide/main/categories.json\")",
+      "Bash(curl -s \"https://api.github.com/search/code?q=repo:lucide-icons/lucide+filename:categories.json\")",
+      "Bash(curl -s https://api.github.com/repos/lucide-icons/lucide/git/trees/main?recursive=1 -o 'C:\\\\Users\\\\Christopher-Admin/lucide_icons_tree.json')",
+      "Read(//c/Users/Christopher-Admin/**)",
+      "Bash(curl -s \"https://raw.githubusercontent.com/lucide-icons/lucide/main/icons/activity-square.json\")",
+      "Bash(curl -s \"https://raw.githubusercontent.com/lucide-icons/lucide/main/icons/square-activity.json\")",
+      "Bash(curl -s \"https://raw.githubusercontent.com/lucide-icons/lucide/main/packages/icons/src/aliases/index.ts\")",
+      "PowerShell(Write-Output \"branch: $\\(git rev-parse --abbrev-ref HEAD\\)\"; Write-Output \"=== earmarked_for_goals in family.rb ===\"; Select-String -Path app\\\\models\\\\family.rb -Pattern 'earmarked_for_goals|allocated_amount' -Context 0,1 | ForEach-Object { \"$\\($_.LineNumber\\): $\\($_.Line.Trim\\(\\)\\)\" }; Write-Output \"=== reflog \\(recent\\) ===\"; git --no-pager reflog -8)",
+      "PowerShell(Get-Command *)",
+      "Bash(git merge --no-ff fix/envelopebudget -m 'Merge branch '\\\\''fix/envelopebudget'\\\\'' into pnw-financial *)",
+      "Bash(grep -oE '\\\\[\\\\\\\\\"[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}\\\\\\\\\"')",
+      "mcp__tokensave__tokensave_context",
+      "Bash(xargs sed -i 's/breadcrumbs\\\\.home\"\\), root_path/breadcrumbs.home\"\\), dashboard_path/g')"
+    ]
+  },
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "startup|resume",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "C:/Python314/Scripts/headroom.EXE wrap selfheal --marker headroom-wrap-selfheal",
+            "timeout": 10
+          }
+        ]
+      }
+    ]
+  }
+}

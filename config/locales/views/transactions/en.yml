@@ -6,6 +6,12 @@ en:
         invalid_selection: Select exactly 2 transactions to match.
         ambiguous_pair: Select one manually entered transaction and one synced transaction to match.
         cross_account: Matched transactions must be in the same account.
+        split_amount_mismatch: A split transaction can only be matched to a synced
+          transaction of the same amount. Edit the split to match, then try again.
+        split_provider_unsupported: The synced transaction is split. Unsplit it
+          first, or match its manual counterpart instead.
+        split_child_unsupported: Split lines can't be matched on their own. Select
+          the split transaction itself.
         success: Transactions matched.
         failure: We couldn't match those transactions. Please try again.
     bulk_updates:

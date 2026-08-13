@@ -25,6 +25,13 @@ class Transactions::BulkMatchesController < ApplicationController
       return
     end
 
+    split_alert = split_guard_alert(manual_entry, provider_entry)
+
+    if split_alert.present?
+      redirect_back_or_to transactions_path, alert: split_alert
+      return
+    end
+
     return unless require_account_permission!(manual_entry.account, :annotate, redirect_path: transactions_path)
 
     reconciliation = TransactionReconciliation.find_or_initialize_by(
@@ -61,5 +68,33 @@ class Transactions::BulkMatchesController < ApplicationController
   private
     def bulk_match_params
       params.require(:bulk_match).permit(entry_ids: [])
+    end
+
+    # Matching a split parent is the point of letting it be selected at all: the
+    # children hang off `parent_entry_id`, so claiming the parent carries the
+    # whole split across. These are the three shapes where that goes wrong.
+    #
+    # @return [String, nil] the alert to show, or nil if the pair is safe
+    def split_guard_alert(manual_entry, provider_entry)
+      # Merger destroys the provider row, and `entries.parent_entry_id` cascades
+      # on delete, so its children would go with it.
+      return t(".split_provider_unsupported") if provider_entry.split_parent?
+
+      # A child's date is pinned to its parent and it can't own a provider
+      # identity of its own.
+      if manual_entry.split_child? || provider_entry.split_child?
+        return t(".split_child_unsupported")
+      end
+
+      return nil unless manual_entry.split_parent?
+
+      # `claim_by_provider!` writes the provider's amount onto the parent while
+      # the children still sum to the old one, breaking the exact-sum invariant
+      # Entry#split! enforces. Nothing downstream re-checks it, so catch it here.
+      if manual_entry.amount != provider_entry.amount
+        return t(".split_amount_mismatch")
+      end
+
+      nil
     end
 end
