@@ -21,11 +21,6 @@ class Family::Syncer
 
   def perform_post_sync
     family.auto_match_transfers!
-
-    Rails.logger.info("Applying rules for family #{family.id}")
-    family.rules.where(active: true).each do |rule|
-      rule.apply_later
-    end
   end
 
   private

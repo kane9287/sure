@@ -485,6 +485,10 @@ class Family < ApplicationRecord
     Merchant.where(id: (assigned_ids + recently_unlinked_ids + family_merchant_ids).uniq)
   end
 
+  def apply_rules_later(execution_type: "scheduled")
+    ApplyFamilyRulesJob.perform_later(self, execution_type: execution_type)
+  end
+
   def auto_categorize_transactions_later(transactions, rule_run_id: nil)
     AutoCategorizeJob.perform_later(self, transaction_ids: transactions.pluck(:id), rule_run_id: rule_run_id)
   end

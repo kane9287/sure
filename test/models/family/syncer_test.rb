@@ -52,40 +52,13 @@ class Family::SyncerTest < ActiveSupport::TestCase
     syncer.perform_sync(family_sync)
   end
 
-  test "only applies active rules during sync" do
-    family_sync = syncs(:family)
+  # Rules are applied once per sync tree by Sync#perform_post_sync (root syncs only),
+  # so the family syncer must not apply them again.
+  test "post sync matches transfers and leaves rules to the sync root" do
+    @family.expects(:auto_match_transfers!).once
+    @family.expects(:apply_rules_later).never
 
-    # Create an active rule
-    active_rule = @family.rules.create!(
-      resource_type: "transaction",
-      active: true,
-      actions: [ Rule::Action.new(action_type: "exclude_transaction") ]
-    )
-
-    # Create a disabled rule
-    disabled_rule = @family.rules.create!(
-      resource_type: "transaction",
-      active: false,
-      actions: [ Rule::Action.new(action_type: "exclude_transaction") ]
-    )
-
-    syncer = Family::Syncer.new(@family)
-
-    # Stub the relation to return our specific instances so expectations work
-    @family.rules.stubs(:where).with(active: true).returns([ active_rule ])
-
-    # Expect apply_later to be called only for the active rule
-    active_rule.expects(:apply_later).once
-    disabled_rule.expects(:apply_later).never
-
-    # Mock the account and plaid item syncs to avoid side effects
-    Account.any_instance.stubs(:sync_later)
-    syncable_item_associations.each do |association|
-      association.klass.any_instance.stubs(:sync_later)
-    end
-
-    syncer.perform_sync(family_sync)
-    syncer.perform_post_sync
+    Family::Syncer.new(@family).perform_post_sync
   end
 
   private
