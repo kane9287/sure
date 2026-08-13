@@ -103,9 +103,18 @@ export default class extends Controller {
     existingInputs.forEach((input) => input.remove());
   }
 
+  // Rows a sweeping action (select page, select group) is allowed to touch.
+  // Split parents are deliberately excluded: they stand in for their children,
+  // so sweeping one in would double-count the group and, on bulk delete, take
+  // the children down with it. They stay reachable by clicking their own
+  // checkbox, which is the deliberate act reconciliation needs.
+  _selectableRows(rows) {
+    return rows.filter((row) => !row.disabled && !row.dataset.splitParent);
+  }
+
   _rowsForGroup(group) {
-    return this.rowTargets.filter(
-      (row) => group.contains(row) && !row.disabled,
+    return this._selectableRows(
+      this.rowTargets.filter((row) => group.contains(row)),
     );
   }
 
@@ -122,9 +131,9 @@ export default class extends Controller {
   }
 
   _selectAll() {
-    this.selectedIdsValue = this.rowTargets
-      .filter((t) => !t.disabled)
-      .map((t) => t.dataset.id);
+    this.selectedIdsValue = this._selectableRows(this.rowTargets).map(
+      (t) => t.dataset.id,
+    );
   }
 
   _updateView = () => {
@@ -190,9 +199,7 @@ export default class extends Controller {
 
   _updateGroups() {
     this.groupTargets.forEach((group) => {
-      const rows = this.rowTargets.filter(
-        (row) => group.contains(row) && !row.disabled,
-      );
+      const rows = this._rowsForGroup(group);
       const groupSelected =
         rows.length > 0 &&
         rows.every((row) => this.selectedIdsValue.includes(row.dataset.id));

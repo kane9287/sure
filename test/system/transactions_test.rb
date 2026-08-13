@@ -181,6 +181,25 @@ class TransactionsTest < ApplicationSystemTestCase
     assert_selection_count(0)
   end
 
+  test "split parent rows are selectable but stay out of select all" do
+    split_parent = @transactions.first
+    split_parent.split!([
+      { name: "Line 1", amount: 60, category_id: categories(:food_and_drink).id },
+      { name: "Line 2", amount: 40, category_id: categories(:one).id }
+    ])
+
+    visit transactions_url(per_page: 50)
+
+    assert_not transaction_checkbox(split_parent).checked?
+
+    all_transactions_checkbox.check
+    assert_not transaction_checkbox(split_parent).checked?,
+               "split parent should not be swept in by page select-all"
+
+    swept_in = selected_count
+    transaction_checkbox(split_parent).check
+    assert_equal swept_in + 1, selected_count
+  end
 
   test "can create deposit transaction for investment account" do
     investment_account = accounts(:investment)
@@ -241,6 +260,10 @@ class TransactionsTest < ApplicationSystemTestCase
 
     def transaction_checkbox(transaction)
       find("#" + dom_id(transaction, "selection"))
+    end
+
+    def selected_count
+      find("#entry-selection-bar [data-bulk-select-target='selectionBarText']").text.to_i
     end
 
     def assert_selection_count(count)

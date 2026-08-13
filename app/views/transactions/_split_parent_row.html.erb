@@ -1,12 +1,23 @@
 <%# locals: (entry:) %>
 <% transaction = entry.entryable %>
 
-<div class="group flex lg:grid lg:grid-cols-12 items-center text-sm font-medium p-3 lg:p-4 opacity-50 text-secondary">
+<div class="group flex lg:grid lg:grid-cols-12 items-center text-sm font-medium p-3 lg:p-4 text-secondary">
   <div class="pr-4 lg:pr-10 flex items-center gap-3 lg:gap-4 col-span-8 min-w-0">
-    <%# Empty space where checkbox would be, for alignment %>
-    <div class="hidden lg:block w-4 shrink-0"></div>
+    <%# Selectable so the parent can be reconciled against a synced transaction,
+        carrying its split children with it. `split_parent` keeps it out of
+        page/group select-all — see bulk_select_controller#_selectableRows. %>
+    <%= check_box_tag dom_id(entry, "selection"),
+        class: "checkbox checkbox--light hidden lg:block",
+        data: {
+          id: entry.id,
+          entry_type: entry.entryable_type,
+          split_parent: true,
+          "bulk-select-target": "row",
+          action: "bulk-select#toggleRowSelection",
+          checkbox_toggle_target: "selectionEntry"
+        } %>
 
-    <div class="max-w-full">
+    <div class="max-w-full opacity-50">
       <div class="flex items-center gap-3 lg:gap-4">
         <div class="hidden lg:flex">
           <% if transaction.merchant&.logo_url.present? %>
@@ -65,7 +76,7 @@
   <div class="hidden md:flex items-center gap-1 col-span-2">
   </div>
 
-  <div class="shrink-0 col-span-4 lg:col-span-2 ml-auto flex items-center justify-end gap-2">
+  <div class="shrink-0 col-span-4 lg:col-span-2 ml-auto flex items-center justify-end gap-2 opacity-50">
     <%= content_tag :p, format_money(-entry.amount_money), class: "privacy-sensitive" %>
   </div>
 </div>

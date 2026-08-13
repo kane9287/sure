@@ -141,6 +141,7 @@ class TransactionReconciliation::Merger
         date: Date.parse(payload["date"])
       )
 
+      sync_split_children_date(manual_entry)
       merge_notes(manual_entry, provider_notes)
       backfill_from_provider(manual_entry, provider_tx_attrs)
 
@@ -183,6 +184,22 @@ class TransactionReconciliation::Merger
       }
     end
 
+    # A split parent's children are validated to share its date, and the list
+    # view groups them under it by date (EntriesHelper#group_split_entries). The
+    # claim moves the parent onto the provider's date, so the children have to
+    # follow or the group silently breaks apart — `split_child_date_matches_parent`
+    # only fires on a child's own date change, so nothing catches this from the
+    # parent's side.
+    #
+    # `update!` rather than `update_column`: the validation compares against
+    # `parent_entry.date`, which already holds the claimed value, so it passes
+    # and the children keep their ordinary callbacks.
+    def sync_split_children_date(manual_entry)
+      manual_entry.child_entries.where.not(date: manual_entry.date).each do |child|
+        child.update!(date: manual_entry.date)
+      end
+    end
+
     # Notes are the one field where neither side wins outright: the user's note
     # and the bank's memo are concatenated, matching what a sync would do to a
     # claimed row (`Account::ProviderImportAdapter#import_transaction`).
@@ -203,7 +220,12 @@ class TransactionReconciliation::Merger
 
       manual_tx = manual_entry.entryable
 
-      attrs = %w[category_id merchant_id].each_with_object({}) do |key, hash|
+      # A split parent's category is meaningless — the children hold the
+      # categories and the parent is excluded from the income statement — so the
+      # provider's guess would only surface a stray category on the parent row.
+      backfillable = manual_entry.split_parent? ? %w[merchant_id] : %w[category_id merchant_id]
+
+      attrs = backfillable.each_with_object({}) do |key, hash|
         value = provider_tx_attrs[key]
         hash[key] = value if value.present? && manual_tx[key].blank?
       end
