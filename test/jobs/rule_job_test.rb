@@ -51,4 +51,25 @@ class RuleJobTest < ActiveJob::TestCase
     assert_equal 10, rule_run.transactions_modified
     assert_equal 10, rule_run.transactions_blocked
   end
+
+  # Lets the /rules run history tell automatic runs apart from hand-clicked ones.
+  test "records the execution type on the rule run" do
+    create_transaction(account: @account, name: "Whole Foods", date: Date.current)
+
+    rule = @family.rules.create!(
+      name: "Whole Foods Testing",
+      resource_type: "transaction",
+      effective_date: 1.year.ago.to_date,
+      conditions: [
+        Rule::Condition.new(condition_type: "transaction_name", operator: "like", value: "Whole Foods")
+      ],
+      actions: [
+        Rule::Action.new(action_type: "set_transaction_category", value: @food_and_dining.id)
+      ]
+    )
+
+    RuleJob.perform_now(rule, execution_type: "scheduled")
+
+    assert_equal "scheduled", rule.rule_runs.order(:created_at).last.execution_type
+  end
 end

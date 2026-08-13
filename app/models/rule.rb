@@ -102,8 +102,8 @@ class Rule < ApplicationRecord
     end
   end
 
-  def apply_later(ignore_attribute_locks: false)
-    RuleJob.perform_later(self, ignore_attribute_locks: ignore_attribute_locks)
+  def apply_later(ignore_attribute_locks: false, execution_type: "manual")
+    RuleJob.perform_later(self, ignore_attribute_locks: ignore_attribute_locks, execution_type: execution_type)
   end
 
   def primary_condition_title

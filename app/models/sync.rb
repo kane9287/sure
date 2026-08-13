@@ -343,9 +343,27 @@ class Sync < ApplicationRecord
       Rails.logger.info("Performing post-sync for #{syncable_type} (#{syncable.id})")
       syncable.perform_post_sync
       syncable.broadcast_sync_complete
+      apply_family_rules
     rescue => e
       Rails.logger.error("Error performing post-sync for #{syncable_type} (#{syncable.id}): #{e.message}")
       report_error(e)
+    end
+
+    # Rules are family-wide, so we apply them once per sync tree — at the root only.
+    # A family sync fans out to a child sync per provider item, and each child runs
+    # its own post-sync, which would otherwise re-run every rule once per item.
+    #
+    # Hooking here (rather than in each syncer) means a standalone item or account
+    # sync — e.g. the per-connection "Sync now" button — applies rules too, and new
+    # providers get the behavior without any changes of their own.
+    def apply_family_rules
+      return if parent_id.present?
+
+      family = syncable.is_a?(Family) ? syncable : syncable.try(:family)
+      return if family.nil?
+
+      Rails.logger.info("Applying rules for family #{family.id}")
+      family.apply_rules_later
     end
 
     def report_error(error)

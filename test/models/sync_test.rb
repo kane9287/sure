@@ -436,4 +436,40 @@ class SyncTest < ActiveSupport::TestCase
     assert_equal new_start, sync.window_start_date
     assert_equal new_end,   sync.window_end_date
   end
+
+  # A standalone provider item sync (e.g. the per-connection "Sync now" button)
+  # applies rules, which is what a family-only hook used to miss.
+  test "root sync applies the syncable's family rules" do
+    sync = Sync.create!(syncable: plaid_items(:one), status: :syncing)
+
+    PlaidItem.any_instance.stubs(:perform_post_sync)
+    PlaidItem.any_instance.stubs(:broadcast_sync_complete)
+    Family.any_instance.expects(:apply_rules_later).once
+
+    sync.finalize_if_all_children_finalized
+  end
+
+  # Otherwise a family sync would re-run every rule once per provider item.
+  test "child sync does not apply rules" do
+    family_sync = Sync.create!(syncable: families(:dylan_family), status: :syncing)
+    child = Sync.create!(syncable: plaid_items(:one), parent: family_sync, status: :syncing)
+
+    PlaidItem.any_instance.stubs(:perform_post_sync)
+    PlaidItem.any_instance.stubs(:broadcast_sync_complete)
+    Family.any_instance.stubs(:perform_post_sync)
+    Family.any_instance.stubs(:broadcast_sync_complete)
+    Family.any_instance.expects(:apply_rules_later).once
+
+    child.finalize_if_all_children_finalized
+
+    assert_equal "completed", family_sync.reload.status
+  end
+
+  test "stale sync does not apply rules" do
+    sync = Sync.create!(syncable: plaid_items(:one), status: :stale)
+
+    Family.any_instance.expects(:apply_rules_later).never
+
+    sync.finalize_if_all_children_finalized
+  end
 end
