@@ -180,11 +180,21 @@ class TransactionTest < ActiveSupport::TestCase
     assert_equal securities(:msft), transaction.activity_security
   end
 
-  test "a transaction cannot be categorized into a built-in category" do
+  test "a transaction can be categorized into an assignable built-in category" do
+    # Debt Payment is assignable so a payment to a debt the app can't see the
+    # other leg of still drains the envelope. See Category::SYSTEM_KEYS.
+    debt_payment = families(:dylan_family).debt_payment_category
+    transaction = Transaction.new(category: debt_payment)
+
+    assert transaction.valid?
+  end
+
+  test "a transaction cannot be categorized into a non-assignable built-in category" do
     # The real enforcement point. Filtering the ~20 category pickers is
     # cosmetic — bulk edit, rules, importers, the assistant and the API all
     # write category_id straight through.
     debt_payment = families(:dylan_family).debt_payment_category
+    debt_payment.stubs(:assignable?).returns(false)
     transaction = Transaction.new(category: debt_payment)
 
     assert_not transaction.valid?

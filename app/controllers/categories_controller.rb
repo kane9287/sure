@@ -20,7 +20,7 @@ class CategoriesController < ApplicationController
   end
 
   def merge
-    @categories = Current.family.categories.user_selectable.alphabetically
+    @categories = Current.family.categories.user_managed.alphabetically
 
     render layout: turbo_frame_request? ? false : "settings"
   end
@@ -70,7 +70,7 @@ class CategoriesController < ApplicationController
   end
 
   def destroy_all
-    Current.family.categories.user_selectable.destroy_all
+    Current.family.categories.user_managed.destroy_all
     redirect_back_or_to categories_path, notice: t(".success")
   end
 
@@ -110,7 +110,7 @@ class CategoriesController < ApplicationController
 
     def set_categories
       @categories = unless @category.parent?
-        Current.family.categories.user_selectable.alphabetically.roots.where.not(id: @category.id)
+        Current.family.categories.user_managed.alphabetically.roots.where.not(id: @category.id)
       else
         []
       end

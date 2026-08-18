@@ -4,7 +4,7 @@ class Rule::ConditionFilter::TransactionCategory < Rule::ConditionFilter
   end
 
   def options
-    family.categories.user_selectable.alphabetically.pluck(:name, :id)
+    family.categories.user_selectable.alphabetically.map { |category| [ category.display_name, category.id ] }
   end
 
   def prepare(scope)

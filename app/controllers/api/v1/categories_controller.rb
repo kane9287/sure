@@ -50,7 +50,7 @@ class Api::V1::CategoriesController < Api::V1::BaseController
     family = current_resource_owner.family
     attrs = category_params
 
-    if attrs[:parent_id].present? && !family.categories.user_selectable.exists?(id: attrs[:parent_id])
+    if attrs[:parent_id].present? && !family.categories.user_managed.exists?(id: attrs[:parent_id])
       return render json: {
         error: "unprocessable_entity",
         message: "Parent must be a category in your family"

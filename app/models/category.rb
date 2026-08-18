@@ -34,9 +34,16 @@ class Category < ApplicationRecord
   }
   scope :roots, -> { where(parent_id: nil) }
   # Categories a user may pick for a transaction, rule, import mapping or goal.
-  # System categories are excluded: they're maintained by the app and their
-  # balance is derived, so a manual assignment would double-count against it.
-  scope :user_selectable, -> { where(system_key: nil) }
+  # System categories are included only when SYSTEM_KEYS marks them assignable.
+  #
+  # Written as an `.or` rather than `where(system_key: [nil, *keys])` on
+  # purpose: several call sites do `user_selectable.find_or_create_by!(name:)`,
+  # and an IN predicate can leak into scope_for_create. An `.or` grouping
+  # contributes no create defaults.
+  scope :user_selectable, -> { where(system_key: nil).or(where(system_key: ASSIGNABLE_SYSTEM_KEYS)) }
+  # Categories the user owns outright: renamable, reparentable, deletable and
+  # mergeable. Never a system category, however assignable it is.
+  scope :user_managed, -> { where(system_key: nil) }
   # Legacy scopes - classification removed; these now return all categories
   scope :incomes, -> { all }
   scope :expenses, -> { all }
@@ -104,15 +111,24 @@ class Category < ApplicationRecord
   # current locale.
   #
   # debt_payment: envelope mode's credit/debt reserve. Its balance is derived
-  # from liability-account activity (IncomeStatement::LiabilityReserve), so
-  # nothing may be categorized into it by hand.
+  # from liability-account activity (IncomeStatement::LiabilityReserve), but it
+  # is still assignable: a payment to a debt the app doesn't see the other leg
+  # of has to be able to drain the envelope, and matched card payments are
+  # budget-excluded (Transaction::BUDGET_EXCLUDED_KINDS) so they can't be
+  # counted twice.
+  #
+  # `assignable` governs pickers only. Identity (name/parent/system_key),
+  # deletion and merging stay locked for every system category regardless.
   SYSTEM_KEYS = {
     "debt_payment" => {
       name_key: "models.category.debt_payment",
       color: PAYMENT_COLOR,
-      lucide_icon: "credit-card"
+      lucide_icon: "credit-card",
+      assignable: true
     }
   }.freeze
+
+  ASSIGNABLE_SYSTEM_KEYS = SYSTEM_KEYS.select { |_key, config| config[:assignable] }.keys.freeze
 
   # Category name keys for i18n
   UNCATEGORIZED_NAME_KEY = "models.category.uncategorized"
@@ -398,6 +414,13 @@ class Category < ApplicationRecord
 
   def debt_payment?
     system_key == "debt_payment"
+  end
+
+  # Predicate: may a user assign this category to a transaction, rule, import
+  # mapping or goal? True for every user-created category, and for the system
+  # categories SYSTEM_KEYS marks assignable.
+  def assignable?
+    !system? || ASSIGNABLE_SYSTEM_KEYS.include?(system_key)
   end
 
   def display_name
