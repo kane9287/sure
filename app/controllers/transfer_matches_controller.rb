@@ -21,9 +21,9 @@ class TransferMatchesController < ApplicationController
       outflow_kind = Transfer.kind_for_account(destination_account)
       outflow_attrs = { kind: outflow_kind }
 
-      if outflow_kind == "investment_contribution"
-        category = destination_account.family.investment_contributions_category
-        outflow_attrs[:category] = category if category.present? && @transfer.outflow_transaction.category_id.blank?
+      auto_category = destination_account.family.auto_category_for_transfer_kind(outflow_kind)
+      if auto_category.present? && @transfer.outflow_transaction.category_id.blank?
+        outflow_attrs[:category] = auto_category
       end
 
       @transfer.outflow_transaction.update!(outflow_attrs)

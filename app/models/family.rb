@@ -283,6 +283,27 @@ class Family < ApplicationRecord
     debt_payment_category
   end
 
+  # The category the app puts on the outflow leg of a transfer it creates or
+  # detects, so the payment doesn't land in the ledger as Uncategorized. nil
+  # when the kind has no built-in home (funds_movement, loan_payment).
+  #
+  # cc_payment maps to the built-in Debt Payment envelope — the same envelope
+  # the reserve for those purchases is already held in. Labelling the leg
+  # can't drain it a second time: every leg of a matched payment is a
+  # Transaction::BUDGET_EXCLUDED_KINDS kind, so it contributes no spend. That
+  # is the whole point of doing this here rather than leaving users to point a
+  # rule at a category of their own, which does drain a second envelope.
+  #
+  # Envelope mode only: in cap mode the envelope isn't part of the model, and
+  # find_or_create would hand a cap-mode family an undeletable system category
+  # it never asked for.
+  def auto_category_for_transfer_kind(kind)
+    case kind
+    when "investment_contribution" then investment_contributions_category
+    when "cc_payment" then (debt_payment_category if envelope_mode?)
+    end
+  end
+
   # The family's cash not yet assigned to an envelope: cash in in-budget
   # accounts, minus every envelope's rolling balance (negative balances reduce
   # the pool the same way positive ones reserve from it — see

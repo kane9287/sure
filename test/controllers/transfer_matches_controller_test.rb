@@ -75,4 +75,21 @@ class TransferMatchesControllerTest < ActionDispatch::IntegrationTest
     category = @user.family.investment_contributions_category
     assert_equal category, outflow_txn.category
   end
+
+  test "assigns cc_payment kind and Debt Payment category for liability destination in envelope mode" do
+    @user.family.activate_envelope_mode!
+    outflow_entry = create_transaction(amount: 100, account: accounts(:depository))
+
+    post transaction_transfer_match_path(outflow_entry), params: {
+      transfer_match: {
+        method: "new",
+        target_account_id: accounts(:credit_card).id
+      }
+    }
+
+    outflow_txn = outflow_entry.reload.entryable
+
+    assert_equal "cc_payment", outflow_txn.kind
+    assert_equal @user.family.debt_payment_category, outflow_txn.category
+  end
 end

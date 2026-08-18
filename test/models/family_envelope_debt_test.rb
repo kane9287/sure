@@ -177,6 +177,23 @@ class FamilyEnvelopeDebtTest < ActiveSupport::TestCase
     assert_equal debt_before - 100, balance(@debt)
   end
 
+  test "a detected card payment is categorized into the envelope it drains" do
+    fund!(@groceries, 200)
+    post!(account: @card, amount: 100, category: @groceries)
+    debt_before = balance(@debt)
+
+    transfer = nil
+    assert_pool_unchanged do
+      transfer = pay!(100, to: @card)
+    end
+
+    # The point of the whole exercise: the payment leaves the ledger reading
+    # "Debt Payment" instead of Uncategorized, so nobody has to point a rule at
+    # a second envelope to make it look right. The reserve still drains once.
+    assert_equal @debt, transfer.outflow_transaction.category
+    assert_equal debt_before - 100, balance(@debt)
+  end
+
   test "a loan payment expenses its envelope without touching the debt reserve" do
     fund!(@groceries, 500)
     debt_before = balance(@debt)
@@ -241,9 +258,9 @@ class FamilyEnvelopeDebtTest < ActiveSupport::TestCase
         destination_account_id: to.id,
         date: Date.current,
         amount: amount
-      ).create
-
-      from.update!(balance: from.balance - amount)
-      to.update!(balance: to.balance - amount)
+      ).create.tap do
+        from.update!(balance: from.balance - amount)
+        to.update!(balance: to.balance - amount)
+      end
     end
 end
