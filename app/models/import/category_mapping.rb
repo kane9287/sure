@@ -55,8 +55,9 @@ class Import::CategoryMapping < Import::Mapping
       parent_name = parts[0].strip
       child_name  = parts[1].strip
 
-      # Ensure the parent category exists before creating the child.
-      parent = import.family.categories.user_selectable.find_or_create_by!(name: parent_name) do |cat|
+      # Ensure the parent category exists before creating the child. A built-in
+      # category can't be reparented onto, so this side stays user_managed.
+      parent = import.family.categories.user_managed.find_or_create_by!(name: parent_name) do |cat|
         cat.color = Category::COLORS.sample
         cat.lucide_icon = Category.suggested_icon(parent_name)
       end

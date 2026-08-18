@@ -125,6 +125,40 @@ class Transfer::CreatorTest < ActiveSupport::TestCase
     assert_equal "funds_movement", inflow.kind
   end
 
+  test "creates a card payment categorized into the built-in Debt Payment envelope" do
+    @family.activate_envelope_mode!
+    card = accounts(:credit_card)
+
+    transfer = Transfer::Creator.new(
+      family: @family,
+      source_account_id: @source_account.id,
+      destination_account_id: card.id,
+      date: @date,
+      amount: @amount
+    ).create
+
+    outflow = transfer.outflow_transaction
+    assert_equal "cc_payment", outflow.kind
+    assert_equal @family.debt_payment_category, outflow.category,
+      "A card payment belongs in the envelope its reserve is already held in"
+  end
+
+  test "creates an uncategorized card payment in cap mode" do
+    card = accounts(:credit_card)
+
+    transfer = Transfer::Creator.new(
+      family: @family,
+      source_account_id: @source_account.id,
+      destination_account_id: card.id,
+      date: @date,
+      amount: @amount
+    ).create
+
+    assert_equal "cc_payment", transfer.outflow_transaction.kind
+    assert_nil transfer.outflow_transaction.category
+    assert_not @family.categories.exists?(system_key: "debt_payment")
+  end
+
   test "creates loan payment" do
     loan_account = accounts(:loan)
 

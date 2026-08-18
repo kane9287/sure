@@ -35,8 +35,9 @@ module Family::AutoTransferMatchable
 
     # Track which transactions we've already matched to avoid duplicates
     used_transaction_ids = Set.new
-    investment_category = nil
-    investment_category_loaded = false
+    # Memoized for the run: every lookup behind it is a find-or-create, and one
+    # sync can turn up dozens of matches sharing a kind.
+    auto_categories = Hash.new { |cache, kind| cache[kind] = auto_category_for_transfer_kind(kind) }
 
     Transfer.transaction do
       candidates_scope.each do |match|
@@ -59,19 +60,17 @@ module Family::AutoTransferMatchable
 
         # The kind is determined by the DESTINATION account (inflow), matching Transfer::Creator logic
         inflow_transaction.update!(kind: "funds_movement")
-        outflow_transaction.update!(kind: transfer_kind)
 
-        # Assign Investment Contributions category for transfers to investment accounts
-        if transfer_kind == "investment_contribution"
-          outflow_txn = outflow_transaction
-          if outflow_txn.category_id.blank?
-            unless investment_category_loaded
-              investment_category = investment_contributions_category
-              investment_category_loaded = true
-            end
-            outflow_txn.update!(category: investment_category) if investment_category.present?
-          end
+        # Give the outflow leg the built-in category its kind belongs to (a card
+        # payment lands in the Debt Payment envelope its reserve is already held
+        # in) so it does not sit in the ledger as Uncategorized. A category the
+        # user picked is never overwritten.
+        outflow_attrs = { kind: transfer_kind }
+        auto_category = auto_categories[transfer_kind]
+        if auto_category.present? && outflow_transaction.category_id.blank?
+          outflow_attrs[:category] = auto_category
         end
+        outflow_transaction.update!(outflow_attrs)
 
         used_transaction_ids << match.inflow_transaction_id
         used_transaction_ids << match.outflow_transaction_id

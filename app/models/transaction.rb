@@ -24,7 +24,7 @@ class Transaction < ApplicationRecord
   ].freeze
 
   validate :validate_attachments, if: -> { attachments.attached? }
-  validate :category_must_be_user_selectable, if: :category_id_changed?
+  validate :category_must_be_assignable, if: :category_id_changed?
 
   accepts_nested_attributes_for :taggings, allow_destroy: true
 
@@ -55,13 +55,12 @@ class Transaction < ApplicationRecord
 
   private
 
-    # The single enforcement point for system categories. Filtering the ~20
-    # category pickers is cosmetic on its own: `belongs_to :category` is
-    # unscoped and TransactionCategoriesController#update assigns category_id
-    # straight from params. A system category's balance is derived, so an
-    # assignment here would be counted twice.
-    def category_must_be_user_selectable
-      return if category.nil? || !category.system?
+    # The single enforcement point for non-assignable system categories.
+    # Filtering the ~20 category pickers is cosmetic on its own: `belongs_to
+    # :category` is unscoped and TransactionCategoriesController#update assigns
+    # category_id straight from params.
+    def category_must_be_assignable
+      return if category.nil? || category.assignable?
 
       errors.add(:category, :not_user_selectable)
     end

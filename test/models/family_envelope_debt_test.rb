@@ -149,6 +149,51 @@ class FamilyEnvelopeDebtTest < ActiveSupport::TestCase
     assert_equal 0, @family.debt_reserve.amount
   end
 
+  test "a payment categorized Debt Payment drains the envelope without moving the pool" do
+    fund!(@debt, 300)
+    debt_before = balance(@debt)
+
+    # The case the category was unlocked for: a payment to a debt whose other
+    # leg the app never sees, so nothing enters the reserve to drain it. The
+    # user's own categorization is what moves the envelope.
+    assert_pool_unchanged do
+      post!(account: @checking, amount: 200, category: @debt)
+    end
+
+    assert_equal debt_before - 200, balance(@debt)
+  end
+
+  test "a matched card payment ignores its category so the reserve isn't drained twice" do
+    fund!(@groceries, 200)
+    post!(account: @card, amount: 100, category: @groceries)
+    debt_before = balance(@debt)
+
+    pay!(100, to: @card)
+
+    # Both legs of a matched payment are budget-excluded kinds, so tagging one
+    # Debt Payment can't subtract on top of the reserve's own drain.
+    @checking.transactions.where(kind: "cc_payment").each { |txn| txn.update!(category: @debt) }
+
+    assert_equal debt_before - 100, balance(@debt)
+  end
+
+  test "a detected card payment is categorized into the envelope it drains" do
+    fund!(@groceries, 200)
+    post!(account: @card, amount: 100, category: @groceries)
+    debt_before = balance(@debt)
+
+    transfer = nil
+    assert_pool_unchanged do
+      transfer = pay!(100, to: @card)
+    end
+
+    # The point of the whole exercise: the payment leaves the ledger reading
+    # "Debt Payment" instead of Uncategorized, so nobody has to point a rule at
+    # a second envelope to make it look right. The reserve still drains once.
+    assert_equal @debt, transfer.outflow_transaction.category
+    assert_equal debt_before - 100, balance(@debt)
+  end
+
   test "a loan payment expenses its envelope without touching the debt reserve" do
     fund!(@groceries, 500)
     debt_before = balance(@debt)
@@ -213,9 +258,9 @@ class FamilyEnvelopeDebtTest < ActiveSupport::TestCase
         destination_account_id: to.id,
         date: Date.current,
         amount: amount
-      ).create
-
-      from.update!(balance: from.balance - amount)
-      to.update!(balance: to.balance - amount)
+      ).create.tap do
+        from.update!(balance: from.balance - amount)
+        to.update!(balance: to.balance - amount)
+      end
     end
 end

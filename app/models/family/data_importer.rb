@@ -732,8 +732,9 @@ class Family::DataImporter
       destination_account = transfer.inflow_transaction.entry.account
       outflow_kind = imported_transfer_outflow_kind(transfer)
       outflow_attrs = { kind: outflow_kind }
-      if outflow_kind == "investment_contribution" && transfer.outflow_transaction.category_id.blank?
-        outflow_attrs[:category] = destination_account.family.investment_contributions_category
+      auto_category = destination_account.family.auto_category_for_transfer_kind(outflow_kind)
+      if auto_category.present? && transfer.outflow_transaction.category_id.blank?
+        outflow_attrs[:category] = auto_category
       end
 
       transfer.outflow_transaction.update!(outflow_attrs)

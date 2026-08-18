@@ -53,7 +53,7 @@ class Transfer::Creator
 
       Transaction.new(
         kind: kind,
-        category: (investment_contributions_category if kind == "investment_contribution"),
+        category: family.auto_category_for_transfer_kind(kind),
         entry: source_account.entries.build(
           amount: amount,
           currency: source_account.currency,
@@ -62,10 +62,6 @@ class Transfer::Creator
           user_modified: true,
         )
       )
-    end
-
-    def investment_contributions_category
-      source_account.family.investment_contributions_category
     end
 
     def inflow_transaction

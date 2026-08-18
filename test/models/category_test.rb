@@ -199,11 +199,27 @@ class CategoryTest < ActiveSupport::TestCase
     assert_not Category.exists?(category.id)
   end
 
-  test "user_selectable excludes system categories" do
+  test "user_selectable includes system categories marked assignable" do
     category = @family.debt_payment_category
 
-    assert_not_includes @family.categories.user_selectable, category
+    assert category.assignable?
+    assert_includes @family.categories.user_selectable, category
     assert_includes @family.categories.user_selectable, categories(:food_and_drink)
+  end
+
+  test "user_managed excludes system categories however assignable they are" do
+    category = @family.debt_payment_category
+
+    assert_not_includes @family.categories.user_managed, category
+    assert_includes @family.categories.user_managed, categories(:food_and_drink)
+  end
+
+  test "user_selectable does not leak a system_key onto categories created through it" do
+    created = @family.categories.user_selectable.create!(
+      name: "Created through the scope", color: "#123456", lucide_icon: "shapes"
+    )
+
+    assert_nil created.system_key
   end
 
   test "system_key is unique per family" do

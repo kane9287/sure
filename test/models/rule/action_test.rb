@@ -53,6 +53,29 @@ class Rule::ActionTest < ActiveSupport::TestCase
     assert_equal @grocery_category.id, @txn1.reload.category_id
   end
 
+  test "set_transaction_category assigns the built-in Debt Payment category" do
+    # The whole point of unlocking it: synced card payments arrive uncategorized
+    # and a rule has to be able to sort them into the debt envelope.
+    debt_payment = @family.debt_payment_category
+
+    action = Rule::Action.new(
+      rule: @transaction_rule,
+      action_type: "set_transaction_category",
+      value: debt_payment.id
+    )
+
+    action.apply(@rule_scope)
+
+    assert_equal debt_payment.id, @txn2.reload.category_id
+  end
+
+  test "set_transaction_category offers the built-in Debt Payment category by its display name" do
+    debt_payment = @family.debt_payment_category
+    options = Rule::ActionExecutor::SetTransactionCategory.new(@transaction_rule).options
+
+    assert_includes options, [ debt_payment.display_name, debt_payment.id ]
+  end
+
   test "set_transaction_tags" do
     tag = @family.tags.create!(name: "Rule test tag")
 

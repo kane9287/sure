@@ -173,6 +173,43 @@ class Family::AutoTransferMatchableTest < ActiveSupport::TestCase
     assert_equal category, outflow_entry.entryable.category
   end
 
+  test "auto-matched card payment lands in the built-in Debt Payment envelope" do
+    @family.activate_envelope_mode!
+    outflow_entry = create_transaction(date: Date.current, account: @depository, amount: 500)
+    create_transaction(date: Date.current, account: @credit_card, amount: -500)
+
+    @family.auto_match_transfers!
+
+    outflow_entry.reload
+    outflow_txn = outflow_entry.entryable
+
+    assert_equal "cc_payment", outflow_txn.kind
+    assert_equal @family.debt_payment_category, outflow_txn.category
+  end
+
+  test "auto-matched card payment keeps a category the user already chose" do
+    @family.activate_envelope_mode!
+    chosen = @family.categories.create!(name: "Chosen", color: "#123456")
+    outflow_entry = create_transaction(date: Date.current, account: @depository, amount: 500)
+    outflow_entry.entryable.update!(category: chosen)
+    create_transaction(date: Date.current, account: @credit_card, amount: -500)
+
+    @family.auto_match_transfers!
+
+    assert_equal chosen, outflow_entry.reload.entryable.category
+  end
+
+  test "auto-matched card payment stays uncategorized in cap mode" do
+    outflow_entry = create_transaction(date: Date.current, account: @depository, amount: 500)
+    create_transaction(date: Date.current, account: @credit_card, amount: -500)
+
+    @family.auto_match_transfers!
+
+    assert_nil outflow_entry.reload.entryable.category
+    assert_not @family.categories.exists?(system_key: "debt_payment"),
+      "cap mode should not be handed an undeletable system category"
+  end
+
   test "auto-matched investment transfers reuse contribution category lookup" do
     investment = accounts(:investment)
     category = @family.investment_contributions_category
