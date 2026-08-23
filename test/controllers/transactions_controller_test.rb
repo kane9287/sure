@@ -1123,6 +1123,74 @@ end
     assert_select "#total-upcoming-expense", count: 0
   end
 
+  test "rescan_reconciliation finds matches across accounts and reports the total count" do
+    enable_preview_features
+    @user.family.update!(manual_reconciliation_mode: "review_only")
+
+    depository = accounts(:depository)
+    credit_card = accounts(:credit_card)
+
+    create_transaction(account: depository, amount: 40, date: 2.days.ago.to_date, name: "samsung affirm")
+    depository_provider = create_transaction(account: depository, amount: 40, date: 1.day.ago.to_date, name: "affirm - direct payment")
+    depository_provider.update!(external_id: "plaid_rescan_1", source: "plaid")
+
+    create_transaction(account: credit_card, amount: 25, date: 2.days.ago.to_date, name: "netflix")
+    credit_card_provider = create_transaction(account: credit_card, amount: 25, date: 1.day.ago.to_date, name: "netflix.com")
+    credit_card_provider.update!(external_id: "plaid_rescan_2", source: "plaid")
+
+    assert_difference "TransactionReconciliation.count", 2 do
+      post rescan_reconciliation_transactions_url
+    end
+
+    assert_redirected_to transactions_url
+  end
+
+  test "rescan_reconciliation redirects with no matches found" do
+    enable_preview_features
+    @user.family.update!(manual_reconciliation_mode: "review_only")
+
+    assert_no_difference "TransactionReconciliation.count" do
+      post rescan_reconciliation_transactions_url
+    end
+
+    assert_redirected_to transactions_url
+  end
+
+  test "rescan_reconciliation redirects when preview features are disabled" do
+    disable_preview_features
+    @user.family.update!(manual_reconciliation_mode: "review_only")
+
+    post rescan_reconciliation_transactions_url
+
+    assert_redirected_to root_url
+  end
+
+  test "rescan_reconciliation only scans accounts the user can write to" do
+    sign_in family_member = users(:family_member)
+    enable_preview_features_for(family_member)
+    family_member.family.update!(manual_reconciliation_mode: "review_only")
+
+    # family_member has read-only access to credit_card, so this match should not be counted
+    credit_card = accounts(:credit_card)
+    create_transaction(account: credit_card, amount: 25, date: 2.days.ago.to_date, name: "netflix")
+    credit_card_provider = create_transaction(account: credit_card, amount: 25, date: 1.day.ago.to_date, name: "netflix.com")
+    credit_card_provider.update!(external_id: "plaid_rescan_3", source: "plaid")
+
+    assert_no_difference "TransactionReconciliation.count" do
+      post rescan_reconciliation_transactions_url
+    end
+  end
+
+  test "rescan_reconciliation redirects when reconciliation is off" do
+    enable_preview_features
+    @user.family.update!(manual_reconciliation_mode: "off")
+
+    post rescan_reconciliation_transactions_url
+
+    assert_redirected_to transactions_url
+    assert_equal I18n.t("transactions.rescan_reconciliation.off"), flash[:alert]
+  end
+
   private
     # Both recurring fixtures are auto-detected, so manual rows are built here
     # rather than added to the fixture file.
@@ -1159,5 +1227,21 @@ end
       end
 
       queries
+    end
+
+    def enable_preview_features
+      enable_preview_features_for(@user)
+    end
+
+    def disable_preview_features
+      disable_preview_features_for(@user)
+    end
+
+    def enable_preview_features_for(user)
+      user.update!(preferences: (user.preferences || {}).merge("preview_features_enabled" => true))
+    end
+
+    def disable_preview_features_for(user)
+      user.update!(preferences: (user.preferences || {}).merge("preview_features_enabled" => false))
     end
 end

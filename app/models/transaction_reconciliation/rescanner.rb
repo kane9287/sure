@@ -1,5 +1,6 @@
 class TransactionReconciliation::Rescanner
   def self.call(account) = new(account).call
+  def self.call_for_accounts(accounts) = accounts.sum { |account| call(account) }
 
   def initialize(account)
     @account = account
