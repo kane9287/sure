@@ -14,6 +14,18 @@
           <% if @uncategorized_count > 0 %>
             <% menu.with_item(variant: "link", text: t(".categorize_button", count: @uncategorized_count), href: transactions_categorize_path, icon: "tag", data: { turbo_frame: :_top }) %>
           <% end %>
+
+          <% if preview_features_enabled? && Current.family.manual_reconciliation_mode != "off" %>
+            <% menu.with_item(variant: "divider") %>
+            <% menu.with_item(
+              variant: "button",
+              text: t(".rescan_reconciliation"),
+              href: rescan_reconciliation_transactions_path,
+              method: :post,
+              icon: "search",
+              data: { turbo_frame: :_top }
+            ) %>
+          <% end %>
         <% end %>
 
         <div class="hidden md:flex">

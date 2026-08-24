@@ -4,6 +4,7 @@ class TransactionsController < ApplicationController
   before_action :set_entry_for_unlock, only: :unlock
   before_action :set_entry_for_tags, only: :update_tags
   before_action :store_params!, only: :index
+  before_action :require_preview_features!, only: %i[rescan_reconciliation]
 
   def new
     prefill_params_from_duplicate!
@@ -122,6 +123,22 @@ class TransactionsController < ApplicationController
     Current.session.update!(prev_transaction_page_params: updated_params)
 
     redirect_to transactions_path(updated_params)
+  end
+
+  def rescan_reconciliation
+    if Current.family.manual_reconciliation_mode == "off"
+      redirect_to transactions_path, alert: t(".off")
+      return
+    end
+
+    accounts = Current.family.accounts.visible.writable_by(Current.user)
+    count = TransactionReconciliation::Rescanner.call_for_accounts(accounts)
+
+    if count.positive?
+      redirect_to transactions_path, notice: t(".found", count: count)
+    else
+      redirect_to transactions_path, notice: t(".none")
+    end
   end
 
   def create

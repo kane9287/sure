@@ -88,6 +88,21 @@ class TransactionReconciliation::RescannerTest < ActiveSupport::TestCase
     end
   end
 
+  test "call_for_accounts sums matches across multiple accounts" do
+    other_account = accounts(:credit_card)
+
+    create_manual_capture(amount: 40, date: 2.days.ago.to_date, name: "samsung affirm")
+    create_provider_entry(amount: 40, date: 1.day.ago.to_date, name: "affirm - direct payment")
+
+    other_manual = create_transaction(account: other_account, amount: 25, date: 2.days.ago.to_date, currency: "USD", name: "netflix")
+    other_provider = create_transaction(account: other_account, amount: 25, date: 1.day.ago.to_date, currency: "USD", name: "netflix.com")
+    other_provider.update!(external_id: "plaid_rescan_2", source: "plaid")
+
+    assert_difference "TransactionReconciliation.count", 2 do
+      assert_equal 2, TransactionReconciliation::Rescanner.call_for_accounts([ @account, other_account ])
+    end
+  end
+
   private
     def create_manual_capture(amount:, date:, name:)
       create_transaction(account: @account, amount: amount, date: date, currency: "USD", name: name)
